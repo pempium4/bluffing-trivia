@@ -27,7 +27,7 @@ let selectedSessionDocId = '';
 
 // Генератор 4-значного коду англійськими літерами у верхньому регістрі
 function generateRoomCode() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let code = '';
   for (let i = 0; i < 4; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));

@@ -5,6 +5,8 @@ import {
   onSnapshot,
   collection,
   getDocs,
+  query,
+  where,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -18,34 +20,64 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+
 let timerInterval = null;
 let isFirstRender = true;
 let currentGameState = null;
+let sessionInfo = null;
 
-// Слухаємо стан гри у Firestore в реальному часі
-onSnapshot(doc(db, 'settings', 'game'), async (docSnap) => {
-  if (!docSnap.exists()) return;
-  currentGameState = docSnap.data();
+// Отримуємо roomCode та знаходимо ID документа сесії у Firestore
+async function getSessionRef() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const roomCode = (urlParams.get('room') || localStorage.getItem('currentSessionCode') || '').toUpperCase();
+  if (!roomCode) return null;
 
-  if (isFirstRender) {
-    isFirstRender = false;
-    const loadingEl = document.getElementById('loading');
-    const containerEl = document.getElementById('boardContainer');
-    if (loadingEl) loadingEl.style.display = 'none';
-    if (containerEl) containerEl.style.display = 'block';
+  const q = query(collection(db, 'sessions'), where('code', '==', roomCode));
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    return { docRef: snap.docs[0].ref, roomCode };
   }
-  renderBoard(currentGameState);
-});
+  return { docRef: null, roomCode };
+}
 
-// Слухаємо голоси та відповіді, щоб табло оновлювалося динамічно
-onSnapshot(collection(db, 'votes'), () => {
-  if (currentGameState) renderBoard(currentGameState);
-});
-onSnapshot(collection(db, 'answers'), () => {
-  if (currentGameState) renderBoard(currentGameState);
-});
+async function initBoard() {
+  sessionInfo = await getSessionRef();
+  if (!sessionInfo || !sessionInfo.docRef) {
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) loadingEl.innerText = 'Помилка: кімнату не знайдено!';
+    return;
+  }
 
-async function renderBoard(state) {
+  const roomCodeEl = document.getElementById('roomCodeDisplay');
+  if (roomCodeEl) {
+    roomCodeEl.innerText = `Код кімнати: ${sessionInfo.roomCode}`;
+  }
+
+  // Слухаємо стан гри саме з документа сесії в колекції sessions
+  onSnapshot(sessionInfo.docRef, async (docSnap) => {
+    if (!docSnap.exists()) return;
+    currentGameState = docSnap.data();
+
+    if (isFirstRender) {
+      isFirstRender = false;
+      const loadingEl = document.getElementById('loading');
+      const containerEl = document.getElementById('boardContainer');
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (containerEl) containerEl.style.display = 'block';
+    }
+    renderBoard(currentGameState, sessionInfo.roomCode);
+  });
+
+  // Слухаємо голоси та відповіді для миттєвого оновлення дошки
+  onSnapshot(collection(db, 'votes'), () => {
+    if (currentGameState && sessionInfo) renderBoard(currentGameState, sessionInfo.roomCode);
+  });
+  onSnapshot(collection(db, 'answers'), () => {
+    if (currentGameState && sessionInfo) renderBoard(currentGameState, sessionInfo.roomCode);
+  });
+}
+
+async function renderBoard(state, roomCode) {
   const viewBoard = document.getElementById('viewBoardMode');
   const viewLb = document.getElementById('viewLbMode');
   const gameView = state.gameView || 'BOARD';
@@ -53,7 +85,7 @@ async function renderBoard(state) {
   if (gameView === 'LEADERBOARD') {
     if (viewBoard) viewBoard.style.display = 'none';
     if (viewLb) viewLb.style.display = 'block';
-    loadLeaderboardData();
+    loadLeaderboardData(roomCode);
     return;
   } else {
     if (viewLb) viewLb.style.display = 'none';
@@ -66,20 +98,23 @@ async function renderBoard(state) {
     roundBlock.innerText = `Запитання № ${currentRoundNum}`;
   }
 
-  await loadQuestionText(currentRoundNum);
+  await loadQuestionText(currentRoundNum, roomCode);
   handleTimer(state);
-  loadAnswersAndVotes(state, currentRoundNum);
+  loadAnswersAndVotes(state, currentRoundNum, roomCode);
 }
 
-async function loadQuestionText(currentRoundNum) {
-  const qSnapshot = await getDocs(collection(db, 'questions'));
+async function loadQuestionText(currentRoundNum, roomCode) {
+  const qQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
+  const qSnapshot = await getDocs(qQuery);
   let foundText = 'Запитання відсутнє';
+
   qSnapshot.forEach((docSnap) => {
     const q = docSnap.data();
     if (Number(q.roundNum) === Number(currentRoundNum)) {
       foundText = q.text || q.question || foundText;
     }
   });
+
   const questionBlock = document.getElementById('boardQuestion');
   if (questionBlock) {
     questionBlock.innerText = foundText;
@@ -164,15 +199,22 @@ function handleTimer(state) {
   }
 }
 
-async function loadAnswersAndVotes(state, currentRoundNum) {
-  const votesSnap = await getDocs(collection(db, 'votes'));
+async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
+  const votesQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
+  const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
+  const questionsQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
+
+  const [votesSnap, answersSnap, qSnapshot] = await Promise.all([
+    getDocs(votesQuery),
+    getDocs(answersQuery),
+    getDocs(questionsQuery),
+  ]);
+
   let roundAnswers = state.shuffledAnswers || [];
 
-  // Якщо кеш порожній, підтягуємо напряму
   if (roundAnswers.length === 0) {
-    const answersSnap = await getDocs(collection(db, 'answers'));
-    const qSnapshot = await getDocs(collection(db, 'questions'));
     let currentQ = { correctAnswer: '', wrongAnswer: '' };
+
     qSnapshot.forEach((docSnap) => {
       const q = docSnap.data();
       if (Number(q.roundNum) === Number(currentRoundNum)) currentQ = q;
@@ -188,6 +230,7 @@ async function loadAnswersAndVotes(state, currentRoundNum) {
         });
       }
     });
+
     if (currentQ.correctAnswer) {
       roundAnswers.push({
         id: 'correct' + currentRoundNum,
@@ -212,13 +255,19 @@ async function loadAnswersAndVotes(state, currentRoundNum) {
   } else {
     roundAnswers.forEach((item, index) => {
       let voters = [];
+      const isCorrect = item.id === 'correct' + currentRoundNum || (item.id && item.id.startsWith('correct'));
+      const isWrong = item.id === 'wrong' + currentRoundNum || (item.id && item.id.startsWith('wrong'));
+
       votesSnap.forEach((vDoc) => {
         const v = vDoc.data();
-        if (
-          Number(v.roundNum) === Number(currentRoundNum) &&
-          v.votedAnswerId === item.id
-        ) {
-          voters.push(v.userName);
+        if (Number(v.roundNum) === Number(currentRoundNum)) {
+          if (
+            (v.votedAnswerId && (v.votedAnswerId === item.id || v.votedAnswerId === item.answer)) ||
+            (v.votedAnswerText && v.votedAnswerText === item.answer) ||
+            (v.votedAnswer && v.votedAnswer === item.answer)
+          ) {
+            voters.push(v.userName);
+          }
         }
       });
 
@@ -231,9 +280,9 @@ async function loadAnswersAndVotes(state, currentRoundNum) {
       `;
 
       if (state.showVoters) {
-        if (item.id && item.id.startsWith('correct')) {
+        if (isCorrect) {
           listHtml += `<div><span class="correct-tag" style="margin: 0;">✅ Правильна відповідь</span></div>`;
-        } else if (item.id && item.id.startsWith('wrong')) {
+        } else if (isWrong) {
           listHtml += `<div><span style="display: inline-block; background: #c62828; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">😡 Відповідь-пастка</span></div>`;
         } else {
           const authorPoints = voters.length;
@@ -244,7 +293,7 @@ async function loadAnswersAndVotes(state, currentRoundNum) {
               }</span>
               ${
                 authorPoints > 0
-                  ? `<b style="color: #03dac6; font-size: 14px;">+${authorPoints}${
+                  ? `<b style="color: #03dac6; font-size: 14px;">+${authorPoints}&nbsp;${
                       authorPoints === 1
                         ? 'бал'
                         : authorPoints < 5
@@ -257,17 +306,15 @@ async function loadAnswersAndVotes(state, currentRoundNum) {
           `;
         }
       }
-
       listHtml += `</div>`;
 
-      // Виведення міток гравців, які проголосували за цей варіант
       if (state.showVoters && voters.length > 0) {
         listHtml += `<div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end;">`;
         voters.forEach((v) => {
           let pointsText = '';
-          if (item.id && item.id.startsWith('correct')) {
+          if (isCorrect) {
             pointsText = ' <b style="color: #2e7d32;">+2</b>';
-          } else if (item.id && item.id.startsWith('wrong')) {
+          } else if (isWrong) {
             pointsText = ' <b style="color: #ff5252;">-1</b>';
           }
           listHtml += `<span style="background: #ffffff; color: #3700b3; padding: 5px 12px; border-radius: 6px; font-size: 15px; white-space: nowrap; margin: 0; font-weight: 500;">👤 ${v}${pointsText}</span>`;
@@ -291,13 +338,17 @@ async function loadAnswersAndVotes(state, currentRoundNum) {
   }
 }
 
-// Загальний підрахунок балів за всі раунди для Таблиці лідерів
-async function loadLeaderboardData() {
-  const answersSnap = await getDocs(collection(db, 'answers'));
-  const votesSnap = await getDocs(collection(db, 'votes'));
-  const questionsSnap = await getDocs(collection(db, 'questions'));
+async function loadLeaderboardData(roomCode) {
+  const votesQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
+  const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
+  const questionsQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
 
-  // Мапа правильних і неправильних ID для кожного раунду
+  const [answersSnap, votesSnap, questionsSnap] = await Promise.all([
+    getDocs(answersQuery),
+    getDocs(votesQuery),
+    getDocs(questionsQuery),
+  ]);
+
   const roundDetails = {};
   questionsSnap.forEach((docSnap) => {
     const q = docSnap.data();
@@ -308,17 +359,15 @@ async function loadLeaderboardData() {
     };
   });
 
-  // Зберігаємо автора для кожного id відповіді гравця
   const answerAuthorMap = {};
   answersSnap.forEach((docSnap) => {
     const a = docSnap.data();
     const ansId = a.id || docSnap.id;
     answerAuthorMap[ansId] = a.userName;
+    answerAuthorMap[a.answer] = a.userName;
   });
 
   const scores = {};
-
-  // Ініціалізуємо всіх гравців, які робили відповіді або голосували
   answersSnap.forEach((d) => {
     const a = d.data();
     if (a.userName) scores[a.userName] = 0;
@@ -328,28 +377,20 @@ async function loadLeaderboardData() {
     if (v.userName && scores[v.userName] === undefined) scores[v.userName] = 0;
   });
 
-  // Рахуємо бали на основі голосів
   votesSnap.forEach((d) => {
     const vote = d.data();
     const voter = vote.userName;
-    const votedId = vote.votedAnswerId;
+    const votedId = vote.votedAnswerId || vote.votedAnswerText || vote.votedAnswer;
     const rNum = Number(vote.roundNum);
-
     if (!voter || !votedId) return;
     if (scores[voter] === undefined) scores[voter] = 0;
 
     const details = roundDetails[rNum] || {};
-
-    // 1. Якщо проголосував за правильну відповідь (+2 бали)
     if (votedId === details.correctId) {
       scores[voter] += 2;
-    }
-    // 2. Якщо проголосував за пастку (-1 бал)
-    else if (votedId === details.wrongId) {
+    } else if (votedId === details.wrongId) {
       scores[voter] -= 1;
-    }
-    // 3. Якщо проголосував за відповідь іншого гравця -> автору +1 бал
-    else {
+    } else {
       const author = answerAuthorMap[votedId];
       if (author) {
         if (scores[author] === undefined) scores[author] = 0;
@@ -381,3 +422,8 @@ async function loadLeaderboardData() {
     lbTable.innerHTML = lbHtml;
   }
 }
+
+// Запуск ініціалізації дошки
+window.onload = function () {
+  initBoard();
+};
