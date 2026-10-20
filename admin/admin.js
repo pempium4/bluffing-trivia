@@ -9,8 +9,6 @@ import {
   onSnapshot,
   setDoc,
   deleteDoc,
-  query,
-  where,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -25,100 +23,125 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Отримуємо код кімнати з URL або з localStorage
-const urlParams = new URLSearchParams(window.location.search);
-const roomCode = urlParams.get('room') || localStorage.getItem('currentSessionCode');
-
-if (!roomCode) {
-  alert('Не вказано код кімнати!');
-  window.location.href = '../index.html';
-}
-
-let sessionDocId = null;
 let isFirstRender = true;
 let isTimerEditing = false;
 let globalQuestionsCache = [];
 let draggedRow = null;
+
+// Зберігаємо поточний стан гри глобально в адмінці
 let currentGameState = null;
 
-// Ініціалізація сесії та підписка на її стан у реальному часі
-async function initSession() {
-  try {
-    const q = query(collection(db, 'sessions'), where('code', '==', roomCode));
-    const querySnapshot = await getDocs(q);
-    
-    // Оновлюємо посилання на дошку, щоб воно містило поточний код кімнати
-    const boardLink = document.getElementById('boardLinkBtn');
-    if (boardLink) {
-      boardLink.href = `../board/board.html?room=${roomCode}`;
-    }
-    
-    if (querySnapshot.empty) {
-      alert('Сесію з таким кодом не знайдено!');
-      window.location.href = '../index.html';
-      return;
-    }
+// Слухаємо стан налаштувань гри в реальному часі
+onSnapshot(doc(db, 'settings', 'game'), async (docSnap) => {
+  if (!docSnap.exists()) return;
+  currentGameState = docSnap.data();
 
-    querySnapshot.forEach((docSnap) => {
-      sessionDocId = docSnap.id;
-    });
-
-    // Слухаємо стан гри саме з документа цієї сесії у колекції sessions
-    onSnapshot(doc(db, 'sessions', sessionDocId), async (docSnap) => {
-      if (!docSnap.exists()) return;
-      currentGameState = docSnap.data();
-      
-      if (isFirstRender) {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('adminContent').style.display = 'block';
-        await loadQuestionsSelect(currentGameState.currentRound || 1);
-        isFirstRender = false;
-      }
-      renderAdminUI(currentGameState);
-    });
-
-    // Слухаємо відповіді та голоси, прив'язані до цієї кімнати
-    onSnapshot(collection(db, 'answers'), (snapshot) => {
-      if (currentGameState) loadLiveStatsAndScores(currentGameState);
-    });
-    onSnapshot(collection(db, 'votes'), (snapshot) => {
-      if (currentGameState) loadLiveStatsAndScores(currentGameState);
-    });
-
-  } catch (error) {
-    console.error('Помилка ініціалізації сесії:', error);
+  if (isFirstRender) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('adminContent').style.display = 'block';
+    await loadQuestionsSelect(currentGameState.currentRound);
+    isFirstRender = false;
   }
-}
+  renderAdminUI(currentGameState);
 
-initSession();
-document.getElementById('roomCodeDisplay').innerText = `Код кімнати: ${roomCode}`;
+  // --- АВТОМАТИЗАЦІЯ: Перемикання "Показати варіанти відповідей" через 3 сек після закінчення таймера ---
+  if (currentGameState.phase === 'SUBMIT') {
+    if (currentGameState.timerState === 'expired') {
+      if (!currentGameState.showQuestion && !hasAutoSwitchedQuestion && !autoShowTimeout) {
+        autoShowTimeout = setTimeout(async () => {
+          hasAutoSwitchedQuestion = true;
+          autoShowTimeout = null;
+          
+          if (typeof window.toggleShowQuestion === 'function') {
+            await window.toggleShowQuestion(true);
+          }
+        }, 3000);
+      }
+    } else if (currentGameState.timerState === 'running') {
+      hasAutoSwitchedQuestion = false;
+      if (autoShowTimeout) {
+        clearTimeout(autoShowTimeout);
+        autoShowTimeout = null;
+      }
+    }
+  } else {
+    hasAutoSwitchedQuestion = false;
+    if (autoShowTimeout) {
+      clearTimeout(autoShowTimeout);
+      autoShowTimeout = null;
+    }
+  }
 
-// Допоміжна функція для отримання посилання на поточний документ сесії
-function getSessionRef() {
-  return doc(db, 'sessions', sessionDocId);
-}
+  // --- АВТОМАТИЗАЦІЯ: Перемикання "Показати авторів та голоси" через 3 сек після закінчення таймера у фазі VOTE ---
+  if (currentGameState.phase === 'VOTE') {
+    if (currentGameState.timerState === 'expired') {
+      if (!currentGameState.showVoters && !hasAutoSwitchedVote && !autoShowVoteTimeout) {
+        autoShowVoteTimeout = setTimeout(async () => {
+          hasAutoSwitchedVote = true;
+          autoShowVoteTimeout = null;
+          
+          if (typeof window.toggleVoters === 'function') {
+            await window.toggleVoters(true);
+          }
+        }, 3000);
+      }
+    } else if (currentGameState.timerState === 'running') {
+      hasAutoSwitchedVote = false;
+      if (autoShowVoteTimeout) {
+        clearTimeout(autoShowVoteTimeout);
+        autoShowVoteTimeout = null;
+      }
+    }
+  } else {
+    hasAutoSwitchedVote = false;
+    if (autoShowVoteTimeout) {
+      clearTimeout(autoShowVoteTimeout);
+      autoShowVoteTimeout = null;
+    }
+  }
+});
+
+// 🟢 Також слухаємо колекції answers та votes в реальному часі, щоб дубль дошки оновлювався миттєво
+onSnapshot(collection(db, 'answers'), (snapshot) => {
+  if (currentGameState) {
+    loadLiveStatsAndScores(currentGameState);
+  }
+});
+
+onSnapshot(collection(db, 'votes'), (snapshot) => {
+  if (currentGameState) {
+    loadLiveStatsAndScores(currentGameState);
+  }
+});
+
+let autoShowTimeout = null;
+let hasAutoSwitchedQuestion = false;
+let autoShowVoteTimeout = null;
+let hasAutoSwitchedVote = false;
 
 async function loadQuestionsSelect(currentRound) {
-  const qQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
-  const qSnapshot = await getDocs(qQuery);
+  const qSnapshot = await getDocs(collection(db, 'questions'));
   const select = document.getElementById('questionSelect');
   let html = '';
+
   const questions = [];
-  
   qSnapshot.forEach((docSnap) => {
     questions.push({ id: docSnap.id, ...docSnap.data() });
   });
-  
+
   questions.sort((a, b) => Number(a.roundNum) - Number(b.roundNum));
   globalQuestionsCache = questions;
-  
+
   if (questions.length === 0) {
     html = `<option value="1">Немає запитань (Налаштування ⚙️)</option>`;
   } else {
     questions.forEach((q) => {
-      html += `<option value="${q.roundNum}">Раунд ${q.roundNum}: ${q.text || q.question || ''}</option>`;
+      html += `<option value="${q.roundNum}">Раунд ${q.roundNum}: ${
+        q.text || q.question || ''
+      }</option>`;
     });
   }
+
   select.innerHTML = html;
   select.value = currentRound;
 }
@@ -128,37 +151,51 @@ document.getElementById('openSettingsBtn').onclick = (e) => {
   e.preventDefault();
   openSettingsModal();
 };
-document.getElementById('closeModalBtn').onclick = () => (modal.style.display = 'none');
-document.getElementById('cancelModalBtn').onclick = () => (modal.style.display = 'none');
+document.getElementById('closeModalBtn').onclick = () =>
+  (modal.style.display = 'none');
+document.getElementById('cancelModalBtn').onclick = () =>
+  (modal.style.display = 'none');
 
 function openSettingsModal() {
   const tbody = document.getElementById('questionsTableBody');
   let html = '';
+
   globalQuestionsCache.forEach((q, idx) => {
     const qText = q.text || q.question || '';
     html += `
       <tr draggable="true" data-doc-id="${q.id}">
         <td class="drag-handle" title="Перетягніть, щоб змінити порядок">☰</td>
-        <td><input type="number" class="q-round" value="${idx + 1}" readonly style="text-align: center; background: #222; color: #888;"></td>
+        <td><input type="number" class="q-round" value="${
+          idx + 1
+        }" readonly style="text-align: center; background: #222; color: #888;"></td>
         <td><input type="text" class="q-text" value="${qText}"></td>
-        <td><input type="text" class="q-correct" value="${q.correctAnswer || ''}"></td>
-        <td><input type="text" class="q-wrong" value="${q.wrongAnswer || ''}"></td>
+        <td><input type="text" class="q-correct" value="${
+          q.correctAnswer || ''
+        }"></td>
+        <td><input type="text" class="q-wrong" value="${
+          q.wrongAnswer || ''
+        }"></td>
         <td style="text-align: center;">
           <button class="delete-row-btn" onclick="deleteQuestionRow(this)" title="Видалити раунд">🗑️</button>
         </td>
       </tr>
     `;
   });
+
   tbody.innerHTML = html;
   initDragAndDrop();
   reindexRounds();
   modal.style.display = 'flex';
 }
 
+// Налаштування логіки Drag & Drop для рядків таблиці
+// Налаштування логіки Drag & Drop для рядків таблиці
 function initDragAndDrop() {
   const tbody = document.getElementById('questionsTableBody');
   const rows = tbody.querySelectorAll('tr');
+
   rows.forEach((row) => {
+    // Дозволяємо розпочинати drag лише при затисканні ручки ☰
     const handle = row.querySelector('.drag-handle');
     if (handle) {
       handle.addEventListener('mousedown', () => {
@@ -168,23 +205,29 @@ function initDragAndDrop() {
         row.removeAttribute('draggable');
       });
     }
+
     row.addEventListener('dragstart', function (e) {
       draggedRow = this;
       this.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
+
     row.addEventListener('dragend', function () {
       this.classList.remove('dragging');
       this.removeAttribute('draggable');
       draggedRow = null;
       reindexRounds();
     });
+
     row.addEventListener('dragover', function (e) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
+
       if (!draggedRow || draggedRow === this) return;
+
       const rect = this.getBoundingClientRect();
       const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+
       if (next) {
         tbody.insertBefore(draggedRow, this.nextSibling);
       } else {
@@ -192,6 +235,29 @@ function initDragAndDrop() {
       }
     });
   });
+}
+
+function getDragAfterElement(container, y) {
+  const draggableElements = [
+    ...container.querySelectorAll('tr:not(.dragging)'),
+  ];
+
+  return draggableElements.reduce(
+    (closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return { offset: negativeInfinityOrLowest(), element: closest.element };
+      }
+    },
+    { offset: Number.NEGATIVE_INFINITY }
+  ).element;
+}
+
+function negativeInfinityOrLowest() {
+  return Number.NEGATIVE_INFINITY;
 }
 
 function reindexRounds() {
@@ -218,7 +284,9 @@ window.addQuestionRow = function () {
   tr.setAttribute('draggable', 'true');
   tr.innerHTML = `
     <td class="drag-handle" title="Перетягніть, щоб змінити порядок">☰</td>
-    <td><input type="number" class="q-round" value="${tbody.children.length + 1}" readonly style="text-align: center; background: #222; color: #888;"></td>
+    <td><input type="number" class="q-round" value="${
+      tbody.children.length + 1
+    }" readonly style="text-align: center; background: #222; color: #888;"></td>
     <td><input type="text" class="q-text" placeholder="Текст запитання..."></td>
     <td><input type="text" class="q-correct" placeholder="Правильна..."></td>
     <td><input type="text" class="q-wrong" placeholder="Пастка..."></td>
@@ -234,20 +302,20 @@ window.addQuestionRow = function () {
 document.getElementById('saveQuestionsBtn').onclick = async () => {
   showLoader('Збереження запитань...');
   const rows = document.querySelectorAll('#questionsTableBody tr');
+
   const existingDocs = [...globalQuestionsCache];
   const processedDocIds = new Set();
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const roundNum = i + 1;
+    const roundNum = i + 1; // Автоматичний порядок за позицією у списку
     const text = row.querySelector('.q-text').value.trim();
     const correctAnswer = row.querySelector('.q-correct').value.trim();
     const wrongAnswer = row.querySelector('.q-wrong').value.trim();
+
     const docId = row.getAttribute('data-doc-id');
-    
-    // Зберігаємо запитання з прив'язкою до roomCode
-    const questionData = { roomCode, roundNum, text, correctAnswer, wrongAnswer };
-    
+    const questionData = { roundNum, text, correctAnswer, wrongAnswer };
+
     if (docId) {
       await setDoc(doc(db, 'questions', docId), questionData);
       processedDocIds.add(docId);
@@ -263,39 +331,40 @@ document.getElementById('saveQuestionsBtn').onclick = async () => {
     }
   }
 
-  // Оновлюємо лічильник запитань у сесії
-  await updateDoc(getSessionRef(), { questionsCount: rows.length });
-
   await loadQuestionsSelect(1);
   modal.style.display = 'none';
   hideLoader();
 };
 
+// --- Решта логіки адмінки ---
 function renderAdminUI(state) {
   const btnSubmit = document.getElementById('btnSubmitPhase');
   const btnVote = document.getElementById('btnVotePhase');
   btnSubmit.className = state.phase === 'SUBMIT' ? 'active' : '';
   btnVote.className = state.phase === 'VOTE' ? 'active' : '';
-  
+
   const btnBoard = document.getElementById('btnViewBoard');
   const btnLb = document.getElementById('btnViewLb');
   btnBoard.className = state.gameView === 'BOARD' ? 'active' : '';
   btnLb.className = state.gameView === 'LEADERBOARD' ? 'active' : '';
-  
-  document.getElementById('showQuestionToggle').checked = state.showQuestion || false;
+
+  document.getElementById('showQuestionToggle').checked =
+    state.showQuestion || false;
   document.getElementById('votersToggle').checked = state.showVoters || false;
-  document.getElementById('boardToggle').checked = state.showBoardToPlayers !== false;
-  
+  document.getElementById('boardToggle').checked =
+    state.showBoardToPlayers !== false;
+
   const select = document.getElementById('questionSelect');
   if (select && Number(select.value) !== Number(state.currentRound)) {
     select.value = state.currentRound;
   }
-  
+
   const timerInput = document.getElementById('timerInput');
+  // Оновлюємо значення інпута з бази, тільки якщо користувач зараз в ньому нічого не друкує
   if (timerInput && document.activeElement !== timerInput) {
     timerInput.value = state.timerSeconds || 30;
   }
-  
+
   const btnStartTimer = document.getElementById('btnStartTimer');
   if (state.timerState === 'running') {
     btnStartTimer.innerText = 'Стоп';
@@ -304,26 +373,25 @@ function renderAdminUI(state) {
     btnStartTimer.innerText = 'Старт';
     btnStartTimer.style.background = '#2e7d32';
   }
+
   loadLiveStatsAndScores(state);
 }
 
 async function loadLiveStatsAndScores(state) {
-  const votesQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
-  const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
-  const questionsQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
-
-  const votesSnap = await getDocs(votesQuery);
-  const answersSnap = await getDocs(answersQuery);
-  const questionsSnap = await getDocs(questionsQuery);
-  
+  const votesSnap = await getDocs(collection(db, 'votes'));
+  const answersSnap = await getDocs(collection(db, 'answers')); // 👈 Додано правильне оголошення answersSnap
+  const questionsSnap = await getDocs(collection(db, 'questions'));
   const statsContainer = document.getElementById('liveStatsContainer');
   let statsHtml = '';
+
   const currentRoundNum = Number(state.currentRound) || 1;
   let roundAnswers = [];
 
+  // 1. Спочатку пробуємо взяти вже закешований і перемішаний масив із налаштувань гри
   if (state.shuffledAnswers && state.shuffledAnswers.length > 0) {
     roundAnswers = state.shuffledAnswers;
   } else {
+    // 2. Якщо кешу ще немає, збираємо звичайним способом
     answersSnap.forEach((docSnap) => {
       const ans = docSnap.data();
       if (Number(ans.roundNum) === currentRoundNum) {
@@ -334,6 +402,7 @@ async function loadLiveStatsAndScores(state) {
         });
       }
     });
+
     let currentQ = { correctAnswer: '', wrongAnswer: '' };
     questionsSnap.forEach((docSnap) => {
       const q = docSnap.data();
@@ -341,6 +410,7 @@ async function loadLiveStatsAndScores(state) {
         currentQ = q;
       }
     });
+
     if (currentQ.correctAnswer) {
       roundAnswers.push({
         id: 'correct' + currentRoundNum,
@@ -366,17 +436,28 @@ async function loadLiveStatsAndScores(state) {
       let voters = [];
       votesSnap.forEach((vDoc) => {
         const v = vDoc.data();
-        if (Number(v.roundNum) === Number(currentRoundNum) && v.votedAnswerId === item.id) {
+        if (
+          Number(v.roundNum) === Number(currentRoundNum) &&
+          v.votedAnswerId === item.id
+        ) {
           voters.push(v.userName);
         }
       });
+
+      // Рахуємо бали для автора цього варіанта (якщо це звичайна відповідь)
+      const authorPoints = voters.length;
+
       statsHtml += `
         <div class="answer-stat-box" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; background: #252525; padding: 12px; border-radius: 8px;">
           <div style="display: flex; flex-direction: column; flex-grow: 1; margin-right: 15px;">
-            <div class="ans-text" style="font-size: 18px; font-weight: bold; margin-bottom: 6px; color: #fff;"><b>${idx + 1}.</b> ${item.answer}</div>
+            <div class="ans-text" style="font-size: 18px; font-weight: bold; margin-bottom: 6px; color: #fff;"><b>${
+              idx + 1
+            }.</b> ${item.answer}</div>
             ${
               item.isSpecial
-                ? `<div><span style="display: inline-block; background: ${ item.userName.includes('Правильна') ? '#2e7d32' : '#c62828' }; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">${
+                ? `<div><span style="display: inline-block; background: ${
+                    item.userName.includes('Правильна') ? '#2e7d32' : '#c62828'
+                  }; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">${
                     item.userName
                   }</span></div>`
                 : `<div><span class="author-badge" style="margin: 0;">😎 Автор: ${item.userName}</span></div>`
@@ -400,7 +481,7 @@ async function loadLiveStatsAndScores(state) {
   }
   statsContainer.innerHTML = statsHtml;
 
-  // Підрахунок балів для Таблиці лідерів
+  // --- ПОВНИЙ ПІДРАХУНОК БАЛІВ ДЛЯ ТАБЛИЦІ ЛІДЕРІВ В АДМІНЦІ ---
   const roundDetails = {};
   questionsSnap.forEach((docSnap) => {
     const q = docSnap.data();
@@ -410,12 +491,14 @@ async function loadLiveStatsAndScores(state) {
       wrongId: 'wrong' + rNum,
     };
   });
+
   const answerAuthorMap = {};
   answersSnap.forEach((docSnap) => {
     const a = docSnap.data();
     const ansId = a.id || docSnap.id;
     answerAuthorMap[ansId] = a.userName;
   });
+
   const scores = {};
   answersSnap.forEach((d) => {
     const a = d.data();
@@ -425,14 +508,18 @@ async function loadLiveStatsAndScores(state) {
     const v = d.data();
     if (v.userName && scores[v.userName] === undefined) scores[v.userName] = 0;
   });
+
   votesSnap.forEach((d) => {
     const vote = d.data();
     const voter = vote.userName;
     const votedId = vote.votedAnswerId;
     const rNum = Number(vote.roundNum);
+
     if (!voter || !votedId) return;
     if (scores[voter] === undefined) scores[voter] = 0;
+
     const details = roundDetails[rNum] || {};
+
     if (votedId === details.correctId) {
       scores[voter] += 2;
     } else if (votedId === details.wrongId) {
@@ -451,20 +538,21 @@ async function loadLiveStatsAndScores(state) {
     score: scores[name],
   }));
   scoreList.sort((a, b) => b.score - a.score);
-  
+
   let lbHtml = '';
   if (scoreList.length > 0) {
     lbHtml += `<table style="width: 100%; border-collapse: collapse;">
                 <tr style="border-bottom: 1px solid #444; color: #03dac6; text-align: left;"><th style="padding: 8px;">Гравець</th><th style="padding: 8px; text-align: right;">Бали</th></tr>`;
     scoreList.forEach((item, index) => {
-      const medal = index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : '';
+      const medal =
+        index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : '';
       lbHtml += `<tr style="border-bottom: 1px solid #222;"><td style="padding: 8px;">${medal}${item.name}</td><td style="padding: 8px; text-align: right; font-weight: bold; color: #bb86fc;">${item.score}</td></tr>`;
     });
     lbHtml += `</table>`;
   } else {
     lbHtml = `<p style="color: #888;">Ще немає нарахованих балів...</p>`;
   }
-  
+
   const lbContainer = document.getElementById('leaderboardContainer');
   if (lbContainer) {
     lbContainer.innerHTML = lbHtml;
@@ -473,7 +561,7 @@ async function loadLiveStatsAndScores(state) {
 
 window.changeQuestion = async function (roundNum) {
   showLoader('Зміна раунду...');
-  await updateDoc(getSessionRef(), {
+  await updateDoc(doc(db, 'settings', 'game'), {
     currentRound: Number(roundNum),
     phase: 'SUBMIT',
     gameView: 'BOARD',
@@ -493,6 +581,16 @@ window.nextRoundBtn = async function () {
     select.selectedIndex++;
     await window.changeQuestion(select.value);
   }
+  hasAutoSwitchedQuestion = false;
+  if (autoShowTimeout) {
+    clearTimeout(autoShowTimeout);
+    autoShowTimeout = null;
+  }
+  hasAutoSwitchedVote = false;
+  if (autoShowVoteTimeout) {
+    clearTimeout(autoShowVoteTimeout);
+    autoShowVoteTimeout = null;
+  }
 };
 
 window.prevRoundBtn = async function () {
@@ -501,49 +599,56 @@ window.prevRoundBtn = async function () {
     select.selectedIndex--;
     await window.changeQuestion(select.value);
   }
+  hasAutoSwitchedQuestion = false;
+  if (autoShowTimeout) {
+    clearTimeout(autoShowTimeout);
+    autoShowTimeout = null;
+  }
+  hasAutoSwitchedVote = false;
+  if (autoShowVoteTimeout) {
+    clearTimeout(autoShowVoteTimeout);
+    autoShowVoteTimeout = null;
+  }
 };
 
 window.setPhase = async function (phase) {
   showLoader('Зміна фази...');
   const timerInput = document.getElementById('timerInput');
   const secs = timerInput ? parseInt(timerInput.value) || 30 : 30;
+
   const updateData = { phase };
   if (phase === 'VOTE') {
     updateData.showBoardToPlayers = true;
+    // 👈 Автоматично запускаємо таймер при переході на фазу Голосування
     updateData.timerState = 'running';
     updateData.timerStartTime = new Date().getTime();
     updateData.timerSeconds = secs;
   }
-  await updateDoc(getSessionRef(), updateData);
+  await updateDoc(doc(db, 'settings', 'game'), updateData);
   hideLoader();
 };
 
 window.setView = async function (mode) {
   showLoader('Зміна режиму...');
-  await updateDoc(getSessionRef(), { gameView: mode });
+  await updateDoc(doc(db, 'settings', 'game'), { gameView: mode });
   hideLoader();
 };
 
 window.toggleShowQuestion = async function (isChecked) {
-  const sessionRef = getSessionRef();
+  const gameDocRef = doc(db, 'settings', 'game');
   if (isChecked) {
-    const sessionSnap = await getDoc(sessionRef);
-    const state = sessionSnap.data();
+    const gameSnap = await getDoc(gameDocRef);
+    const state = gameSnap.data();
     const currentRoundNum = Number(state.currentRound) || 1;
-    
-    const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
-    const questionsQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
-    const answersSnap = await getDocs(answersQuery);
-    const questionsSnap = await getDocs(questionsQuery);
-    
+    const answersSnap = await getDocs(collection(db, 'answers'));
+    const qSnapshot = await getDocs(collection(db, 'questions'));
     let currentQ = { correctAnswer: '', wrongAnswer: '' };
-    questionsSnap.forEach((docSnap) => {
+    qSnapshot.forEach((docSnap) => {
       const q = docSnap.data();
       if (Number(q.roundNum) === currentRoundNum) {
         currentQ = q;
       }
     });
-    
     let roundAnswers = [];
     answersSnap.forEach((docSnap) => {
       const ans = docSnap.data();
@@ -555,7 +660,6 @@ window.toggleShowQuestion = async function (isChecked) {
         });
       }
     });
-    
     if (currentQ.correctAnswer) {
       roundAnswers.push({
         id: 'correct' + currentRoundNum,
@@ -572,20 +676,19 @@ window.toggleShowQuestion = async function (isChecked) {
         isSpecial: true,
       });
     }
-    
+    // Перемішуємо тільки при увімкненні
     for (let i = roundAnswers.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [roundAnswers[i], roundAnswers[j]] = [roundAnswers[j], roundAnswers[i]];
     }
     
-    await updateDoc(sessionRef, {
+    // 👇 ЗАМІНА: Прибираємо скидання таймера в 'idle', щоб не відкривати поля заново
+    await updateDoc(gameDocRef, {
       showQuestion: true,
       shuffledAnswers: roundAnswers,
-      timerState: 'idle',
-      timerStartTime: 0,
     });
   } else {
-    await updateDoc(sessionRef, {
+    await updateDoc(gameDocRef, {
       showQuestion: false,
     });
   }
@@ -593,18 +696,47 @@ window.toggleShowQuestion = async function (isChecked) {
 
 window.toggleBoardToPlayers = async function (isChecked) {
   const updateData = { showBoardToPlayers: isChecked };
+
   if (isChecked) {
     const timerInput = document.getElementById('timerInput');
     const secs = timerInput ? parseInt(timerInput.value) || 30 : 30;
+
+    // 👈 Автоматично запускаємо таймер при увімкненні показу запитання учасникам
     updateData.timerState = 'running';
     updateData.timerStartTime = new Date().getTime();
     updateData.timerSeconds = secs;
   }
-  await updateDoc(getSessionRef(), updateData);
+
+  await updateDoc(doc(db, 'settings', 'game'), updateData);
 };
 
 window.toggleVoters = async function (isChecked) {
-  await updateDoc(getSessionRef(), { showVoters: isChecked });
+  await updateDoc(doc(db, 'settings', 'game'), {
+    showVoters: isChecked,
+  });
+};
+
+window.saveOrEditTimer = async function () {
+  const input = document.getElementById('timerInput');
+  const btnSave = document.getElementById('btnSaveTimer');
+  const secs = parseInt(input.value) || 30;
+
+  if (!isTimerEditing) {
+    // Натиснули "Зберегти" -> блокуємо поле, робимо кнопку сірим текстом "Змінити"
+    input.disabled = true;
+    input.style.background = '#222';
+    btnSave.innerText = 'Змінити';
+    btnSave.classList.add('change-link-btn');
+    isTimerEditing = true;
+    await updateDoc(doc(db, 'settings', 'game'), { timerSeconds: secs });
+  } else {
+    // Натиснули "Змінити" -> розблоковуємо поле, повертаємо фіолетову кнопку "Зберегти"
+    input.disabled = false;
+    input.style.background = '#2d2d2d';
+    btnSave.innerText = 'Зберегти';
+    btnSave.classList.remove('change-link-btn');
+    isTimerEditing = false;
+  }
 };
 
 window.toggleTimer = async function () {
@@ -612,21 +744,24 @@ window.toggleTimer = async function () {
   const btnStart = document.getElementById('btnStartTimer');
   const secs = parseInt(input.value) || 30;
   const isRunning = btnStart.innerText === 'Стоп';
+
   const timerState = isRunning ? 'idle' : 'running';
   const timerStartTime = isRunning ? 0 : new Date().getTime();
-  
-  await updateDoc(getSessionRef(), {
+
+  await updateDoc(doc(db, 'settings', 'game'), {
     timerSeconds: secs,
     timerState: timerState,
     timerStartTime: timerStartTime,
   });
 };
 
+// Логіка модального вікна очищення дошки
 const clearModal = document.getElementById('clearBoardModal');
 document.getElementById('openClearBoardModal').onclick = (e) => {
   e.preventDefault();
   clearModal.style.display = 'flex';
 };
+
 document.getElementById('cancelClearBtn').onclick = () => {
   clearModal.style.display = 'none';
 };
@@ -634,23 +769,25 @@ document.getElementById('cancelClearBtn').onclick = () => {
 document.getElementById('confirmClearBtn').onclick = async () => {
   clearModal.style.display = 'none';
   showLoader('Очищення дошки...');
+
   try {
-    const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
-    const votesQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
-    
-    const answersSnap = await getDocs(answersQuery);
+    const answersSnap = await getDocs(collection(db, 'answers'));
     for (const d of answersSnap.docs) {
       await deleteDoc(doc(db, 'answers', d.id));
     }
-    const votesSnap = await getDocs(votesQuery);
+
+    const votesSnap = await getDocs(collection(db, 'votes'));
     for (const d of votesSnap.docs) {
       await deleteDoc(doc(db, 'votes', d.id));
     }
-    await updateDoc(getSessionRef(), {
+
+    await updateDoc(doc(db, 'settings', 'game'), {
       shuffledAnswers: [],
       showQuestion: false,
     });
+
     hideLoader();
+    // Прибрали alert, тепер очищення відбуватиметься без зайвого попапу!
   } catch (err) {
     console.error('Помилка очищення:', err);
     hideLoader();
@@ -660,7 +797,7 @@ document.getElementById('confirmClearBtn').onclick = async () => {
 
 window.updateTimerSeconds = async function (val) {
   const secs = parseInt(val) || 30;
-  await updateDoc(getSessionRef(), { timerSeconds: secs });
+  await updateDoc(doc(db, 'settings', 'game'), { timerSeconds: secs });
 };
 
 function showLoader(text) {

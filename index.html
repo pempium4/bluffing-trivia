@@ -4,44 +4,195 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>🎭 Гра "Блеф"</title>
-    <link
-      rel="icon"
-      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>😈</text></svg>"
-    />
-    <link rel="stylesheet" href="style.css" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          Helvetica, Arial, sans-serif;
+        background: #121212;
+        color: #ffffff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+      .card {
+        background: #1e1e1e;
+        border: 1px solid #333;
+        border-radius: 16px;
+        padding: 40px 30px;
+        max-width: 420px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      }
+      h1 {
+        margin: 0 0 10px 0;
+        font-size: 32px;
+        color: #bb86fc;
+      }
+      p.subtitle {
+        color: #aaa;
+        font-size: 15px;
+        margin-bottom: 30px;
+      }
+      .btn {
+        display: block;
+        width: 100%;
+        padding: 14px 20px;
+        margin-bottom: 15px;
+        border: none;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: transform 0.1s ease, opacity 0.2s ease;
+        text-decoration: none;
+      }
+      .btn:active {
+        transform: scale(0.98);
+      }
+      .btn-primary {
+        background: #3700b3;
+        color: #ffffff;
+      }
+      .btn-primary:hover {
+        background: #4700d3;
+      }
+      .btn-secondary {
+        background: #03dac6;
+        color: #121212;
+      }
+      .btn-secondary:hover {
+        background: #00f2de;
+      }
+
+      /* Модальне вікно */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+      .modal {
+        background: #1e1e1e;
+        border: 1px solid #333;
+        border-radius: 16px;
+        padding: 30px;
+        max-width: 360px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+      }
+      .modal h3 {
+        margin-top: 0;
+        color: #bb86fc;
+        font-size: 20px;
+      }
+
+      /* Контейнер для інпуту з іконкою */
+      .password-container {
+        position: relative;
+        width: 100%;
+        margin: 15px 0 20px 0;
+      }
+      .modal input {
+        width: 100%;
+        padding: 12px 40px 12px 12px;
+        background: #121212;
+        border: 1px solid #444;
+        border-radius: 8px;
+        color: #fff;
+        font-size: 16px;
+        text-align: center;
+      }
+      .modal input:focus {
+        border-color: #bb86fc;
+        outline: none;
+      }
+      .toggle-password {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 18px;
+        color: #888;
+        padding: 0;
+      }
+      .toggle-password:hover {
+        color: #fff;
+      }
+
+      .modal-buttons {
+        display: flex;
+        gap: 10px;
+      }
+      .modal-btn {
+        flex: 1;
+        padding: 10px;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .btn-cancel {
+        background: #333;
+        color: #fff;
+      }
+      .btn-cancel:hover {
+        background: #444;
+      }
+      .error-msg {
+        color: #cf6679;
+        font-size: 13px;
+        margin-top: -10px;
+        margin-bottom: 15px;
+        display: none;
+      }
+    </style>
   </head>
   <body>
     <div class="card">
       <h1>🎭 Гра "Блеф"</h1>
       <p class="subtitle">Ласкаво просимо! Оберіть дію:</p>
 
-      <button class="btn btn-primary" onclick="openCreateModal()">
+      <button class="btn btn-primary" onclick="openModal()">
         👑 Створити гру
       </button>
 
-      <button class="btn btn-secondary" onclick="openSessionsModal()">
-      🗂️ Переглянути сесії
-      </button>
-
-      <button class="btn btn-success" onclick="openJoinModal()">
+      <a href="./player/player.html" class="btn btn-secondary">
         🎮 Доєднатися до гри
-      </button>
+      </a>
     </div>
 
-    <!-- 1. Модальне вікно: Створити гру (Адмін) -->
-    <div id="createModal" class="modal-overlay">
+    <!-- Модальне вікно -->
+    <div id="passwordModal" class="modal-overlay">
       <div class="modal">
-        <h3>Створення нової сесії</h3>
+        <h3>Вхід адміністратора</h3>
         <p style="color: #aaa; font-size: 14px; margin-bottom: 5px">
-          Введіть пароль для цієї гри:
+          Введіть пароль для доступу до панелі:
         </p>
 
         <div class="password-container">
           <input
             type="password"
             id="adminPasswordInput"
-            placeholder="Пароль кімнати"
-            onkeydown="handleKeyPress(event, 'create')"
+            placeholder="Пароль"
+            onkeydown="handleKeyPress(event)"
           />
           <button
             type="button"
@@ -53,99 +204,100 @@
           </button>
         </div>
 
-        <div id="errorMsg" class="error-msg">Введіть пароль!</div>
+        <div id="errorMsg" class="error-msg">Неправильний пароль!</div>
 
         <div class="modal-buttons">
-          <button class="modal-btn btn-cancel" onclick="closeModal('createModal')">
+          <button class="modal-btn btn-cancel" onclick="closeModal()">
             Скасувати
           </button>
-          <button class="modal-btn btn-primary" onclick="createGameSession()">
-            Створити
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 2. Модальне вікно: Переглянути сесії -->
-    <div id="sessionsModal" class="modal-overlay">
-      <div class="modal" style="max-width: 420px;">
-        <h3>Архів сесій гри</h3>
-        <div id="sessionsList">Завантаження...</div>
-        <div class="modal-buttons" style="margin-top: 15px;">
-          <button class="modal-btn btn-cancel" onclick="closeModal('sessionsModal')">
-            Закрити
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 3. Модальне вікно: Доєднатися до гри (Гравець) -->
-    <div id="joinModal" class="modal-overlay">
-      <div class="modal">
-        <h3>Введіть код гри</h3>
-
-        <div class="password-container">
-          <input
-            type="text"
-            id="joinCodeInput"
-            placeholder="4-значний код кімнати"
-            maxlength="4"
-            style="text-transform: uppercase"
-            onkeydown="handleKeyPress(event, 'join')"
-          />
-        </div>
-
-        <div id="joinErrorMsg" class="error-msg">Кімнату не знайдено!</div>
-
-        <div class="modal-buttons">
-          <button class="modal-btn btn-cancel" onclick="closeModal('joinModal')">
-            Скасувати
-          </button>
-          <button class="modal-btn btn-success" onclick="verifyAndJoinGame()">
+          <button class="modal-btn btn-primary" onclick="checkPassword()">
             Увійти
           </button>
         </div>
       </div>
     </div>
 
-    <!-- 4. Модальне вікно: Введення пароля сесії з архіву -->
-    <div id="sessionPasswordModal" class="modal-overlay">
-      <div class="modal">
-        <h3>Вхід до сесії</h3>
-        <p style="color: #aaa; font-size: 14px; margin-bottom: 5px">
-          Введіть пароль для сесії <span id="targetSessionCode" style="color: #03dac6; font-weight: bold;"></span>:
-        </p>
+    <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+      import {
+        getFirestore,
+        doc,
+        getDoc,
+      } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
-        <div class="password-container">
-          <input
-            type="password"
-            id="sessionPasswordInput"
-            placeholder="Пароль сесії"
-            onkeydown="handleKeyPress(event, 'sessionLogin')"
-          />
-          <button
-            type="button"
-            class="toggle-password"
-            id="toggleSessionPasswordBtn"
-            onclick="toggleSessionPasswordVisibility()"
-          >
-            👁️
-          </button>
-        </div>
+      const firebaseConfig = {
+        apiKey: 'AIzaSyCln7hjCL45RBjSP_XibdsZ1JdL4QE94D4',
+        authDomain: 'bluf-trivia.firebaseapp.com',
+        projectId: 'bluf-trivia',
+        storageBucket: 'bluf-trivia.appspot.com',
+        messagingSenderId: '559894766567',
+        appId: '1:559894766567:web:ba15a3ee7f8c64d5f2d342',
+      };
 
-        <div id="sessionErrorMsg" class="error-msg">Неправильний пароль!</div>
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
 
-        <div class="modal-buttons">
-          <button class="modal-btn btn-cancel" onclick="closeModal('sessionPasswordModal')">
-            Скасувати
-          </button>
-          <button class="modal-btn btn-primary" onclick="verifySessionPassword()">
-            Увійти
-          </button>
-        </div>
-      </div>
-    </div>
+      window.openModal = function () {
+        const modal = document.getElementById('passwordModal');
+        const input = document.getElementById('adminPasswordInput');
+        const errorMsg = document.getElementById('errorMsg');
 
-    <script type="module" src="main.js"></script>
+        input.value = '';
+        input.type = 'password';
+        document.getElementById('togglePasswordBtn').innerText = '👁️';
+        errorMsg.style.display = 'none';
+        modal.style.display = 'flex';
+        input.focus();
+      };
+
+      window.closeModal = function () {
+        document.getElementById('passwordModal').style.display = 'none';
+      };
+
+      window.togglePasswordVisibility = function () {
+        const input = document.getElementById('adminPasswordInput');
+        const btn = document.getElementById('togglePasswordBtn');
+        if (input.type === 'password') {
+          input.type = 'text';
+          btn.innerText = '👁️‍🗨️';
+        } else {
+          input.type = 'password';
+          btn.innerText = '👁️';
+        }
+      };
+
+      window.checkPassword = async function () {
+        const inputPassword =
+          document.getElementById('adminPasswordInput').value;
+        const errorMsg = document.getElementById('errorMsg');
+
+        try {
+          const docRef = doc(db, 'settings', 'game');
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            const correctPassword = data.adminPassword || 'pempium4';
+
+            if (inputPassword === correctPassword) {
+              window.location.href = './admin/admin.html';
+              return;
+            }
+          }
+
+          errorMsg.style.display = 'block';
+          document.getElementById('adminPasswordInput').focus();
+        } catch (error) {
+          console.error('Помилка перевірки пароля:', error);
+          errorMsg.style.display = 'block';
+        }
+      };
+
+      window.handleKeyPress = function (event) {
+        if (event.key === 'Enter') {
+          window.checkPassword();
+        }
+      };
+    </script>
   </body>
 </html>
