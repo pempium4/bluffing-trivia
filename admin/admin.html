@@ -315,6 +315,27 @@
             border-top: 1px solid #333;
           "
         >
+
+        <!-- Прихований файл-інпут для CSV -->
+        <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleCsvImport(event)">
+
+        <!-- Кнопка Імпорту (margin-right: auto виштовхує її вліво) -->
+        <button
+          type="button"
+          onclick="document.getElementById('csvFileInput').click()"
+          style="
+            background: #374151;
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            margin-right: auto;
+          "
+        >
+          📂 Імпорт CSV
+        </button>
+
           <button
             id="cancelModalBtn"
             style="

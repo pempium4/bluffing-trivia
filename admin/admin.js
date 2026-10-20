@@ -278,7 +278,7 @@ window.deleteQuestionRow = function (btn) {
   }
 };
 
-window.addQuestionRow = function () {
+window.addQuestionRow = function (questionVal = '', correctVal = '', wrongVal = '') {
   const tbody = document.getElementById('questionsTableBody');
   const tr = document.createElement('tr');
   tr.setAttribute('draggable', 'true');
@@ -287,16 +287,16 @@ window.addQuestionRow = function () {
     <td><input type="number" class="q-round" value="${
       tbody.children.length + 1
     }" readonly style="text-align: center; background: #222; color: #888;"></td>
-    <td><input type="text" class="q-text" placeholder="Текст запитання..."></td>
-    <td><input type="text" class="q-correct" placeholder="Правильна..."></td>
-    <td><input type="text" class="q-wrong" placeholder="Пастка..."></td>
+    <td><input type="text" class="q-text" placeholder="Текст запитання..." value="${questionVal.replace(/"/g, '&quot;')}"></td>
+    <td><input type="text" class="q-correct" placeholder="Правильна..." value="${correctVal.replace(/"/g, '&quot;')}"></td>
+    <td><input type="text" class="q-wrong" placeholder="Пастка..." value="${wrongVal.replace(/"/g, '&quot;')}"></td>
     <td style="text-align: center;">
       <button class="delete-row-btn" onclick="deleteQuestionRow(this)" title="Видалити раунд">🗑️</button>
     </td>
   `;
   tbody.appendChild(tr);
-  initDragAndDrop();
-  reindexRounds();
+  if (typeof initDragAndDrop === 'function') initDragAndDrop();
+  if (typeof reindexRounds === 'function') reindexRounds();
 };
 
 document.getElementById('saveQuestionsBtn').onclick = async () => {
@@ -798,6 +798,57 @@ document.getElementById('confirmClearBtn').onclick = async () => {
 window.updateTimerSeconds = async function (val) {
   const secs = parseInt(val) || 30;
   await updateDoc(doc(db, 'settings', 'game'), { timerSeconds: secs });
+};
+
+window.handleCsvImport = function (event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const text = e.target.result;
+    const lines = text.split(/\r\n|\n/);
+    
+    // Шукаємо контейнер усіма можливими способами
+    let container = document.getElementById('questionsTableBody');
+    if (!container) {
+      container = document.querySelector('tbody');
+    }
+    
+    if (!container) {
+      alert('Помилка: таблиця для запитань не знайдена на сторінці!');
+      return;
+    }
+
+    let importedCount = 0;
+
+    lines.forEach((line, index) => {
+      if (!line.trim()) return;
+      
+      const separator = line.includes(';') ? ';' : ',';
+      const parts = line.split(separator).map(p => p.trim().replace(/^["']|["']$/g, ''));
+
+      // Пропускаємо шапку
+      if (parts.length >= 2 && index === 0 && (parts[0].toLowerCase().includes('запит') || parts[0].toLowerCase().includes('question'))) {
+        return;
+      }
+
+      if (parts.length >= 2) {
+        const questionText = parts[0] || '';
+        const correctAns = parts[1] || '';
+        const wrongAns = parts[2] || '';
+
+        if (typeof window.addQuestionRow === 'function') {
+          window.addQuestionRow(questionText, correctAns, wrongAns);
+          importedCount++;
+        }
+      }
+    });
+
+    event.target.value = '';
+  };
+
+  reader.readAsText(file, 'UTF-8');
 };
 
 function showLoader(text) {
