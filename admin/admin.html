@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Панель керування грою</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>😈</text></svg>"
+    />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div id="adminLoader">
+        <div class="mini-spinner"></div>
+        <span>Збереження...</span>
+      </div>
+      <h1>🎮 Панель керування грою</h1>
+      <div id="roomCodeDisplay" style="text-align: center; color: #03dac6; font-size: 15px; margin-bottom: 25px; font-weight: 750; letter-spacing: 1px;">Код кімнати: </div>
+      <div id="loading">Завантаження панелі...</div>
+      <div id="adminContent" style="display: none">
+        <div class="card">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 10px;
+            "
+          >
+            <h3 style="margin: 0; border: none; padding: 0">
+              📌 Вибір запитання
+            </h3>
+            <a href="#" id="openSettingsBtn" class="settings-link"
+              >Налаштування</a
+            >
+          </div>
+          <div class="row">
+            <select
+              id="questionSelect"
+              onchange="changeQuestion(this.value)"
+            ></select>
+            <button onclick="prevRoundBtn()">⬅️ Назад</button>
+            <button onclick="nextRoundBtn()">Вперед ➡️</button>
+          </div>
+        </div>
+
+        <!-- Картка: Посилання на табло -->
+        <div class="card" style="padding: 12px 15px; margin-bottom: 20px">
+          <a href="../board/board.html" target="_blank" class="board-link-btn" id="boardLinkBtn">
+            🖥️ Перейти до дошки
+          </a>
+        </div>
+
+        <div class="card">
+          <!-- Заголовок без ліній -->
+          <h3
+            style="border-bottom: none; padding-bottom: 0; margin-bottom: 15px"
+          >
+            ⚙️ Керування станом гри
+          </h3>
+
+          <!-- 1. Таймер (ЗІ СМУЖКОЮ) -->
+          <div class="switch-container has-border">
+            <span class="switch-label">Таймер (секунд):</span>
+            <div style="display: flex; gap: 12px; align-items: center">
+              <input
+                type="number"
+                id="timerInput"
+                value="30"
+                onchange="updateTimerSeconds(this.value)"
+                style="
+                  width: 70px;
+                  padding: 10px;
+                  border-radius: 8px;
+                  border: 1px solid #444;
+                  background: #2d2d2d;
+                  color: #fff;
+                  text-align: center;
+                  font-size: 15px;
+                  box-sizing: border-box;
+                "
+                min="5"
+                max="300"
+              />
+              <button
+                id="btnStartTimer"
+                onclick="toggleTimer()"
+                style="
+                  background: #2e7d32;
+                  padding: 10px 16px;
+                  font-size: 15px;
+                  border-radius: 8px;
+                  color: #fff;
+                  border: none;
+                  cursor: pointer;
+                  box-sizing: border-box;
+                "
+              >
+                Старт
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Фаза гри (ЗІ СМУЖКОЮ І ЗБІЛЬШЕНИМ ВІДСТУПОМ) -->
+          <div class="switch-container has-border">
+            <span class="switch-label">Фаза гри:</span>
+            <div>
+              <button id="btnSubmitPhase" onclick="setPhase('SUBMIT')">
+                ✍️ Збір
+              </button>
+              <button id="btnVotePhase" onclick="setPhase('VOTE')">
+                🗳️ Голосування
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. Відкрити запитання учасникам (без лінії) -->
+          <div class="switch-container">
+            <span class="switch-label">Відкрити запитання учасникам</span>
+            <label class="switch">
+              <input
+                type="checkbox"
+                id="boardToggle"
+                onchange="toggleBoardToPlayers(this.checked)"
+              />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- 4. Показати варіанти відповідей (без лінії) -->
+          <div class="switch-container">
+            <span class="switch-label">Показати варіанти відповідей</span>
+            <label class="switch">
+              <input
+                type="checkbox"
+                id="showQuestionToggle"
+                onchange="toggleShowQuestion(this.checked)"
+              />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- 5. Показати авторів та голоси (ЗІ СМУЖКОЮ І ЗБІЛЬШЕНИМ ВІДСТУПОМ) -->
+          <div class="switch-container has-border">
+            <span class="switch-label">Показати авторів та голоси</span>
+            <label class="switch">
+              <input
+                type="checkbox"
+                id="votersToggle"
+                onchange="toggleVoters(this.checked)"
+              />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- 6. Табло (без лінії) -->
+          <div class="switch-container">
+            <span class="switch-label">Табло:</span>
+            <div>
+              <button id="btnViewBoard" onclick="setView('BOARD')">
+                📋 Запитання
+              </button>
+              <button id="btnViewLb" onclick="setView('LEADERBOARD')">
+                🏆 Рейтинг
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 12px;
+            "
+          >
+            <h3 style="margin: 0; border: none; padding: 0">
+              ☑️ Список варіантів
+            </h3>
+            <a
+              href="#"
+              id="openClearBoardModal"
+              class="settings-link"
+              style="font-size: 14px; text-decoration: underline"
+              >Очистити дошку</a
+            >
+          </div>
+          <div id="liveStatsContainer">
+            <p style="color: #888">Завантаження варіантів...</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>🏆 Таблиця лідерів</h3>
+          <div id="leaderboardContainer">
+            <p style="color: #888">Підрахунок балів...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- МОДАЛЬНЕ ВІКНО НАЛАШТУВАНЬ ЗАПИТАНЬ -->
+    <div
+      id="settingsModal"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+      "
+    >
+      <div
+        style="
+          background: #1e1e1e;
+          border: 1px solid #444;
+          width: 92%;
+          max-width: 980px;
+          max-height: 85vh;
+          border-radius: 12px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+        "
+      >
+        <!-- Шапка модалки -->
+        <div
+          style="
+            padding: 16px 20px;
+            background: #252525;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+          "
+        >
+          <h2 style="margin: 0; color: #bb86fc; font-size: 20px">
+            ⚙️ Редагування запитань раундів
+          </h2>
+          <button
+            id="closeModalBtn"
+            style="
+              background: transparent;
+              border: none;
+              color: #aaa;
+              font-size: 20px;
+              cursor: pointer;
+              padding: 0;
+            "
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Тіло модалки з таблицею -->
+        <div style="padding: 20px; overflow-y: auto; flex-grow: 1">
+          <table
+            style="width: 100%; border-collapse: collapse; text-align: left"
+          >
+            <thead>
+              <tr
+                style="
+                  border-bottom: 2px solid #444;
+                  color: #03dac6;
+                  font-size: 14px;
+                "
+              >
+                <th style="padding: 10px; width: 40px; text-align: center">
+                  ↕
+                </th>
+                <th style="padding: 10px; width: 70px">Раунд №</th>
+                <th style="padding: 10px">Запитання</th>
+                <th style="padding: 10px">Правильна відповідь</th>
+                <th style="padding: 10px">Відповідь-пастка</th>
+                <th style="padding: 10px; width: 40px; text-align: center"></th>
+              </tr>
+            </thead>
+            <tbody id="questionsTableBody"></tbody>
+          </table>
+          <button
+            onclick="addQuestionRow()"
+            style="
+              margin-top: 15px;
+              background: #2d2d2d;
+              border: 1px dashed #03dac6;
+              color: #03dac6;
+              width: 100%;
+              padding: 10px;
+              border-radius: 8px;
+              font-weight: bold;
+              cursor: pointer;
+            "
+          >
+            + Add (Додати рядок)
+          </button>
+        </div>
+
+        <!-- Підвал модалки -->
+        <div
+          style="
+            padding: 15px 20px;
+            background: #252525;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            border-top: 1px solid #333;
+          "
+        >
+          <button
+            id="cancelModalBtn"
+            style="
+              background: #444;
+              color: #fff;
+              padding: 10px 20px;
+              border-radius: 8px;
+              border: none;
+              cursor: pointer;
+            "
+          >
+            Скасувати
+          </button>
+          <button
+            id="saveQuestionsBtn"
+            style="
+              background: #03dac6;
+              color: #121212;
+              padding: 10px 25px;
+              border-radius: 8px;
+              font-weight: bold;
+              border: none;
+              cursor: pointer;
+            "
+          >
+            Зберегти
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- МОДАЛЬНЕ ВІКНО ОЧИЩЕННЯ ДОШКИ -->
+    <div
+      id="clearBoardModal"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+      "
+    >
+      <div
+        style="
+          background: #1e1e1e;
+          border: 1px solid #444;
+          width: 90%;
+          max-width: 400px;
+          padding: 25px;
+          border-radius: 12px;
+          text-align: center;
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+        "
+      >
+        <h3 style="color: #ff5252; margin-top: 0">⚠️ Очищення дошки</h3>
+        <p style="color: #ccc; font-size: 15px; margin-bottom: 20px">
+          Ви точно хочете очистити варіанти та голоси всіх учасників?
+        </p>
+        <div style="display: flex; justify-content: center; gap: 12px">
+          <button
+            id="cancelClearBtn"
+            style="
+              background: #444;
+              color: #fff;
+              padding: 10px 20px;
+              border-radius: 8px;
+              border: none;
+              cursor: pointer;
+            "
+          >
+            Скасувати
+          </button>
+          <button
+            id="confirmClearBtn"
+            style="
+              background: #c62828;
+              color: #fff;
+              padding: 10px 20px;
+              border-radius: 8px;
+              border: none;
+              font-weight: bold;
+              cursor: pointer;
+            "
+          >
+            Очистити
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="admin.js"></script>
+  </body>
+</html>

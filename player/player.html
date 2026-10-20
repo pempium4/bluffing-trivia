@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Кабінет гравця - Блеф</title>
+    <link rel="stylesheet" href="player.css">
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>😈</text></svg>"
+    />
+  </head>
+  <body>
+    <!-- Екран 1: Вхід у гру (введення нікнейму вперше) -->
+    <div id="loginScreen" class="card" style="display: none; text-align: center;">
+      <h2>🎭 Гра "Блеф"</h2>
+      <p style="color: #666; margin-bottom: 20px;">Введіть свій нікнейм, щоб приєднатися до гри:</p>
+      <input type="text" id="loginUsername" placeholder="Ваш нікнейм">
+      <button onclick="joinGame()" style="background: #3700b3;">🎮 Приєднатися</button>
+    </div>
+
+    <!-- Екран 2: Основний інтерфейс гри -->
+    <div id="mainContainer" class="card" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h2 style="margin: 0;">🎭 Гра "Блеф"</h2>
+        <button onclick="changeNickname()" style="width: auto; padding: 4px 10px; background: transparent; border: none; color: #888; font-size: 12px; text-decoration: underline; cursor: pointer;">Змінити нік</button>
+      </div>
+
+      <div id="playerRoomCodeDisplay" style="color: #1565c0; font-size: 14px; margin-bottom: 15px; font-weight: bold; text-align: left; letter-spacing: 0.5px;">Код кімнати: ...</div>
+     
+      <!-- Поле нікнейму (заблоковане для редагування) -->
+      <input type="text" id="username" readonly style="background: #f0f0f0; font-weight: bold; color: #333; cursor: not-allowed; margin-bottom: 15px;">
+      
+      <div id="loading">Завантаження...</div>
+
+      <!-- Блок очікування, коли гру вимкнено ведучим -->
+      <div id="waitingContainer" style="display: none; padding: 20px; text-align: center;">
+        <div class="spinner" style="margin: 20px auto;"></div>
+        <div style="font-size: 16px; color: #666; font-weight: 500;">Очікуйте наступного запитання...</div>
+      </div>
+
+      <!-- Фаза 1: Збір варіантів -->
+      <div id="phaseSubmitContainer" style="display: none;">
+        <div class="badge" id="roundBadgeSubmit">Раунд</div>
+        <div class="question-box" id="questionTextSubmit"></div>
+        
+        <!-- Смужка таймера для гравця -->
+        <div class="player-timer-container" id="playerTimerContainerSubmit">
+          <div class="player-timer-fill" id="playerTimerFillSubmit"></div>
+        </div>
+       
+        <div id="submitFormArea">
+          <input type="text" id="answer" placeholder="Ваш варіант" required>
+          <button type="button" onclick="submitAnswer()">Надіслати відповідь</button>
+        </div>
+        
+        <div id="submitLoader" class="loader-container">
+          <div class="spinner"></div>
+          <div style="font-size: 14px; color: #666; margin-top: 8px;">Надсилання вашого варіанту...</div>
+        </div>
+       
+        <div id="submittedStatusArea" class="submitted-box" style="display: none;">
+          <h3>✅ Ваш варіант прийнято!</h3>
+          <div class="info-item">
+            <div class="info-label">Ваша відповідь:</div>
+            <div class="info-value" id="dispMyAnswer"></div>
+          </div>
+          <p style="font-size: 12px; color: #666; text-align: center; margin-bottom: 0;">Очікуйте на початок голосування...</p>
+        </div>
+
+        <!-- Помаранчевий блок: Час вичерпано -->
+        <div id="timeoutStatusArea" class="timeout-box" style="display: none;">
+          <h3>🥲 Ой, час на введення відповіді вичерпано...</h3>
+          <p style="font-size: 13px; color: #666; text-align: center; margin-bottom: 0;">Очікуйте на початок голосування...</p>
+        </div>
+      </div>
+
+      <!-- Фаза 2: Голосування -->
+      <div id="phaseVoteContainer" style="display: none;">
+        <div class="badge">🗳️ Час голосувати!</div>
+        <div class="question-box" id="questionTextVote"></div>
+        
+        <!-- Смужка таймера для гравця -->
+        <div class="player-timer-container" id="playerTimerContainerVote">
+          <div class="player-timer-fill" id="playerTimerFillVote"></div>
+        </div>
+
+        <div id="voteArea">
+          <p style="font-size: 14px; color: #555; margin-bottom: 10px; text-align: left;">Оберіть варіант:</p>
+          <div id="votingButtonsList"></div>
+        </div>
+
+        <div id="voteLoader" class="loader-container">
+          <div class="spinner"></div>
+          <div style="font-size: 14px; color: #666; margin-top: 8px;">Зберігаємо ваш голос...</div>
+        </div>
+
+        <div id="votedStatusArea" class="voted-box" style="display: none;">
+          <h3>✅ Ваш голос зараховано!</h3>
+          <div class="info-item">
+            <div class="info-label">Ваш вибір:</div>
+            <div class="info-value" id="dispMyVote"></div>
+          </div>
+          <p style="font-size: 12px; color: #666; text-align: center; margin-bottom: 0;">Очікуйте результатів...</p>
+        </div>
+      </div>
+
+      <div id="errorMsg"></div>
+    </div>
+
+    <script type="module" src="player.js"></script>
+  </body>
+</html>

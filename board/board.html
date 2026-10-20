@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Табло гри - Блеф</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>😈</text></svg>"
+    />
+    <link rel="stylesheet" href="board.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎭 Гра "Блеф"</h1>
+      <div id="boardRoomCodeDisplay" style="text-align: center; color: #03dac6; font-size: 16px; margin-top: -10px; margin-bottom: 20px; font-weight: 750; letter-spacing: 1px;">Код кімнати: ...</div>
+      <div id="loading">Завантаження табло...</div>
+
+      <div id="boardContainer" style="display: none">
+        <!-- Екран режиму запитань / варіантів -->
+        <div id="viewBoardMode">
+          <div class="badge" id="boardRound">Запитання № 1</div>
+          <div class="question-card" id="boardQuestion">
+            Завантаження тексту запитання...
+          </div>
+
+          <!-- Смужка таймера знизу картки запитання -->
+          <div class="timer-bar-container" id="timerBarContainer">
+            <div class="timer-bar-fill" id="timerBarFill"></div>
+          </div>
+
+          <!-- Блок варіантів відповідей (з'являється лише коли ввімкнено світчер) -->
+          <div id="answersWrapper" style="display: none">
+            <h3
+              id="answersTitle"
+              style="text-align: left; color: #03dac6; margin-bottom: 12px"
+            >
+              Варіанти відповідей:
+            </h3>
+            <div class="answers-grid" id="answersList"></div>
+          </div>
+        </div>
+
+        <!-- Екран таблиці лідерів -->
+        <div id="viewLbMode" style="display: none">
+          <div class="badge">🏆 Загальний рейтинг гравців 🏆</div>
+          <div class="lb-card">
+            <table class="lb-table" id="leaderboardTable"></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="board.js"></script>
+  </body>
+</html>

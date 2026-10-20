@@ -1,0 +1,342 @@
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  padding: 20px;
+  background: #121212;
+  color: #fff;
+  margin: 0;
+}
+.container {
+  max-width: 900px;
+  margin: auto;
+}
+h1 {
+  color: #bb86fc;
+  font-size: 24px;
+  text-align: center;
+  margin-bottom: 25px;
+}
+.card {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+}
+.card h3 {
+  margin-top: 0;
+  color: #03dac6;
+  font-size: 18px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 8px;
+}
+
+/* Сіре посилання «Налаштування» з підкресленням */
+.settings-link {
+  color: #aaaaaa;
+  font-size: 14px;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.settings-link:hover {
+  color: #03dac6;
+}
+
+.row {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+select,
+button {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #2d2d2d;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+select {
+  flex: 1;
+  min-width: 250px;
+}
+button {
+  background: #3700b3;
+  border: none;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+button:hover {
+  background: #6200ee;
+}
+button.active {
+  background: #03dac6;
+  color: #000;
+}
+
+.switch-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: none;
+}
+.switch-container.has-border {
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.switch-label {
+  font-size: 16px;
+}
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #444;
+  transition: 0.3s;
+  border-radius: 26px;
+}
+.slider:before {
+  position: absolute;
+  content: '';
+  height: 18px;
+  width: 18px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+input:checked + .slider {
+  background-color: #03dac6;
+}
+input:checked + .slider:before {
+  transform: translateX(24px);
+}
+
+.answer-stat-box {
+  background: #2d2d2d;
+  padding: 14px 16px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  border-left: 5px solid #03dac6;
+}
+.ans-text {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 6px;
+  color: #fff;
+}
+.author-badge {
+  display: inline-block;
+  background: #1565c0;
+  color: #e3f2fd;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+.voters-tag {
+  display: inline-block;
+  background: #3700b3;
+  color: #bb86fc;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin: 2px;
+}
+.no-votes {
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+}
+
+#loading {
+  text-align: center;
+  font-size: 18px;
+  color: #aaa;
+  margin-top: 50px;
+}
+
+#adminLoader {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(55, 0, 179, 0.9);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: bold;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  display: none;
+  z-index: 9999;
+  align-items: center;
+  gap: 8px;
+}
+.mini-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Стилі для поля та фіолетової корзини видалення */
+#questionsTableBody input {
+  width: 100%;
+  padding: 8px 10px;
+  background: #2d2d2d;
+  border: 1px solid #444;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+#questionsTableBody input:focus {
+  border-color: #03dac6;
+  outline: none;
+}
+#questionsTableBody td {
+  padding: 8px 6px;
+  vertical-align: middle;
+}
+
+.delete-row-btn {
+  background: #3700b3;
+  color: #fff;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.delete-row-btn:hover {
+  background: #6200ee;
+}
+
+/* Стилі для рядків таблиці під час Drag & Drop */
+#questionsTableBody tr {
+  cursor: default;
+  transition: background 0.15s;
+}
+#questionsTableBody tr.dragging {
+  opacity: 0.4;
+  background: #333 !important;
+}
+.drag-handle {
+  cursor: grab;
+  color: #888;
+  font-size: 16px;
+  text-align: center;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Стиль для «Змінити», коли таймер заблоковано */
+.change-link-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #aaaaaa !important;
+  font-size: 14px !important;
+  font-weight: normal !important;
+  text-decoration: underline !important;
+  cursor: pointer !important;
+  padding: 0 4px !important;
+  box-shadow: none !important;
+  transition: color 0.2s !important;
+}
+
+.change-link-btn:hover {
+  color: #03dac6 !important;
+  background: transparent !important;
+}
+
+/* Кнопка переходу на дошку */
+.board-link-btn {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: #03dac6;
+  color: #121212;
+  text-align: center;
+  font-weight: bold;
+  font-size: 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.board-link-btn:hover {
+  background: #00f2de;
+}
+
+.board-link-btn:active {
+  transform: scale(0.99);
+}
+
+@media (max-width: 600px) {
+  /* Знаходимо рядок виключно всередині картки вибору запитання */
+  .card:has(#questionSelect) .row,
+  .card .row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  /* Розтягуємо елементи лише в цьому блоці */
+  .card:has(#questionSelect) select,
+  .card:has(#questionSelect) button {
+    width: 100% !important;
+  }
+}
+
+/* Прибираємо підкреслення у заголовку останньої картки (Таблиця лідерів) */
+.card:last-child h3 {
+  border-bottom: none !important;
+  padding-bottom: 0 !important;
+}
+.card:last-child h3::after {
+  display: none !important;
+}
+
+.control-row.border-bottom {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1); /* або твій колір лінії */
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
