@@ -315,9 +315,6 @@ function renderAdminUI(state) {
   
   const votersToggle = document.getElementById('votersToggle');
   if (votersToggle) votersToggle.checked = state.showVoters || false;
-  
-  const boardToggle = document.getElementById('boardToggle');
-  if (boardToggle) boardToggle.checked = state.showBoardToPlayers !== false;
 
   const select = document.getElementById('questionSelect');
   if (select && Number(select.value) !== Number(state.currentRound)) {
@@ -522,7 +519,7 @@ window.changeQuestion = async function (roundNum) {
   showLoader('Зміна раунду...');
   await updateDoc(sessionInfo.docRef, {
     currentRound: Number(roundNum),
-    phase: 'SUBMIT',
+    phase: 'idle',
     gameView: 'BOARD',
     showQuestion: false,
     showVoters: false,
@@ -555,13 +552,26 @@ window.setPhase = async function (phase) {
   showLoader('Зміна фази...');
   const timerInput = document.getElementById('timerInput');
   const secs = timerInput ? parseInt(timerInput.value) || 30 : 30;
+  
   const updateData = { phase };
-  if (phase === 'VOTE') {
+
+  if (phase === 'SUBMIT') {
+    // Фаза "Збір": відкриваємо доступ гравцям і запускаємо таймер
+    updateData.showBoardToPlayers = true;
+    updateData.showQuestion = false; // Варіанти ще приховані!
+    updateData.showVoters = false;
+    updateData.timerState = 'running';
+    updateData.timerStartTime = new Date().getTime();
+    updateData.timerSeconds = secs;
+  } 
+  else if (phase === 'VOTE') {
+    // Фаза "Голосування": запускаємо таймер голосування
     updateData.showBoardToPlayers = true;
     updateData.timerState = 'running';
     updateData.timerStartTime = new Date().getTime();
     updateData.timerSeconds = secs;
   }
+
   await updateDoc(sessionInfo.docRef, updateData);
   hideLoader();
 };
@@ -637,19 +647,6 @@ window.toggleShowQuestion = async function (isChecked) {
       showQuestion: false,
     });
   }
-};
-
-window.toggleBoardToPlayers = async function (isChecked) {
-  if (!sessionInfo) return;
-  const updateData = { showBoardToPlayers: isChecked };
-  if (isChecked) {
-    const timerInput = document.getElementById('timerInput');
-    const secs = timerInput ? parseInt(timerInput.value) || 30 : 30;
-    updateData.timerState = 'running';
-    updateData.timerStartTime = new Date().getTime();
-    updateData.timerSeconds = secs;
-  }
-  await updateDoc(sessionInfo.docRef, updateData);
 };
 
 window.toggleVoters = async function (isChecked) {
