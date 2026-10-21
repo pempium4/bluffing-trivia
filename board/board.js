@@ -21,72 +21,63 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Отримуємо код кімнати з URL або з localStorage
-const urlParams = new URLSearchParams(window.location.search);
-const roomCode =
-  urlParams.get('room') || localStorage.getItem('currentSessionCode');
-
-if (!roomCode) {
-  alert('Не вказано код кімнати!');
-  window.location.href = '../index.html';
-}
-
-let sessionDocId = null;
 let timerInterval = null;
 let isFirstRender = true;
 let currentGameState = null;
+let sessionInfo = null;
 
-// Ініціалізація дошки та пошук сесії за кодом
-async function initBoard() {
-  try {
-    const q = query(collection(db, 'sessions'), where('code', '==', roomCode));
-    const querySnapshot = await getDocs(q);
+// Отримуємо roomCode та знаходимо ID документа сесії у Firestore
+async function getSessionRef() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const roomCode = (urlParams.get('room') || localStorage.getItem('currentSessionCode') || '').toUpperCase();
+  if (!roomCode) return null;
 
-    if (querySnapshot.empty) {
-      alert('Сесію з таким кодом не знайдено!');
-      window.location.href = '../index.html';
-      return;
-    }
-
-    querySnapshot.forEach((docSnap) => {
-      sessionDocId = docSnap.id;
-    });
-
-    // Слухаємо стан гри саме з документа цієї сесії у колекції sessions
-    onSnapshot(doc(db, 'sessions', sessionDocId), async (docSnap) => {
-      if (!docSnap.exists()) return;
-      currentGameState = docSnap.data();
-
-      if (isFirstRender) {
-        isFirstRender = false;
-        const loadingEl = document.getElementById('loading');
-        const containerEl = document.getElementById('boardContainer');
-        if (loadingEl) loadingEl.style.display = 'none';
-        if (containerEl) containerEl.style.display = 'block';
-      }
-      renderBoard(currentGameState);
-    });
-
-    // Слухаємо голоси та відповіді, прив'язані до цієї кімнати
-    onSnapshot(collection(db, 'votes'), () => {
-      if (currentGameState) renderBoard(currentGameState);
-    });
-    onSnapshot(collection(db, 'answers'), () => {
-      if (currentGameState) renderBoard(currentGameState);
-    });
-  } catch (error) {
-    console.error('Помилка ініціалізації дошки:', error);
+  const q = query(collection(db, 'sessions'), where('code', '==', roomCode));
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    return { docRef: snap.docs[0].ref, roomCode };
   }
+  return { docRef: null, roomCode };
 }
 
-initBoard();
+async function initBoard() {
+  sessionInfo = await getSessionRef();
+  if (!sessionInfo || !sessionInfo.docRef) {
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) loadingEl.innerText = 'Помилка: кімнату не знайдено!';
+    return;
+  }
 
-const boardCodeEl = document.getElementById('boardRoomCodeDisplay');
-if (boardCodeEl) {
-  boardCodeEl.innerText = `Код кімнати: ${roomCode}`;
+  const roomCodeEl = document.getElementById('roomCodeDisplay');
+  if (roomCodeEl) {
+    roomCodeEl.innerText = `Код кімнати: ${sessionInfo.roomCode}`;
+  }
+
+  // Слухаємо стан гри саме з документа сесії в колекції sessions
+  onSnapshot(sessionInfo.docRef, async (docSnap) => {
+    if (!docSnap.exists()) return;
+    currentGameState = docSnap.data();
+
+    if (isFirstRender) {
+      isFirstRender = false;
+      const loadingEl = document.getElementById('loading');
+      const containerEl = document.getElementById('boardContainer');
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (containerEl) containerEl.style.display = 'block';
+    }
+    renderBoard(currentGameState, sessionInfo.roomCode);
+  });
+
+  // Слухаємо голоси та відповіді для миттєвого оновлення дошки
+  onSnapshot(collection(db, 'votes'), () => {
+    if (currentGameState && sessionInfo) renderBoard(currentGameState, sessionInfo.roomCode);
+  });
+  onSnapshot(collection(db, 'answers'), () => {
+    if (currentGameState && sessionInfo) renderBoard(currentGameState, sessionInfo.roomCode);
+  });
 }
 
-async function renderBoard(state) {
+async function renderBoard(state, roomCode) {
   const viewBoard = document.getElementById('viewBoardMode');
   const viewLb = document.getElementById('viewLbMode');
   const gameView = state.gameView || 'BOARD';
@@ -94,7 +85,7 @@ async function renderBoard(state) {
   if (gameView === 'LEADERBOARD') {
     if (viewBoard) viewBoard.style.display = 'none';
     if (viewLb) viewLb.style.display = 'block';
-    loadLeaderboardData();
+    loadLeaderboardData(roomCode);
     return;
   } else {
     if (viewLb) viewLb.style.display = 'none';
@@ -107,16 +98,13 @@ async function renderBoard(state) {
     roundBlock.innerText = `Запитання № ${currentRoundNum}`;
   }
 
-  await loadQuestionText(currentRoundNum);
+  await loadQuestionText(currentRoundNum, roomCode);
   handleTimer(state);
-  loadAnswersAndVotes(state, currentRoundNum);
+  loadAnswersAndVotes(state, currentRoundNum, roomCode);
 }
 
-async function loadQuestionText(currentRoundNum) {
-  const qQuery = query(
-    collection(db, 'questions'),
-    where('roomCode', '==', roomCode)
-  );
+async function loadQuestionText(currentRoundNum, roomCode) {
+  const qQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
   const qSnapshot = await getDocs(qQuery);
   let foundText = 'Запитання відсутнє';
 
@@ -127,11 +115,21 @@ async function loadQuestionText(currentRoundNum) {
     }
   });
 
-  const questionBlock = document.getElementById('boardQuestion');
-  if (questionBlock) {
-    questionBlock.innerText = foundText;
+  const questionTextEl = document.getElementById('boardQuestionText');
+  if (questionTextEl) {
+    // Анімуємо тільки тоді, коли текст реально змінився
+    if (questionTextEl.innerText !== foundText) {
+      questionTextEl.classList.remove('question-animate');
+      questionTextEl.innerText = foundText;
+      void questionTextEl.offsetWidth; // Примусовий reflow для перезапуску анімації
+      questionTextEl.classList.add('question-animate');
+    }
   }
 }
+
+let globalTickCtx = null;
+let continuousOscillator = null;
+let continuousGainNode = null;
 
 function handleTimer(state) {
   const timerFill = document.getElementById('timerBarFill');
@@ -142,6 +140,35 @@ function handleTimer(state) {
     const totalSecs = Number(state.timerSeconds) || 30;
     const startTime = Number(state.timerStartTime);
 
+    // Ініціалізуємо один стабільний аудіо-потік на весь час таймера
+    try {
+      if (!globalTickCtx || globalTickCtx.state === 'closed') {
+        globalTickCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (globalTickCtx.state === 'suspended') {
+        globalTickCtx.resume();
+      }
+
+      if (continuousOscillator) {
+        try { continuousOscillator.stop(); } catch(e){}
+      }
+
+      continuousOscillator = globalTickCtx.createOscillator();
+      continuousGainNode = globalTickCtx.createGain();
+
+      continuousOscillator.type = 'sine';
+      continuousOscillator.frequency.setValueAtTime(500, globalTickCtx.currentTime);
+      
+      continuousGainNode.gain.setValueAtTime(0.001, globalTickCtx.currentTime);
+
+      continuousOscillator.connect(continuousGainNode);
+      continuousGainNode.connect(globalTickCtx.destination);
+      continuousOscillator.start();
+    } catch (e) {
+      console.log('Помилка ініціалізації аудіо:', e);
+    }
+
+    let lastPlayedSecond = -1;
     timerInterval = setInterval(() => {
       const now = new Date().getTime();
       const elapsedSec = (now - startTime) / 1000;
@@ -149,44 +176,81 @@ function handleTimer(state) {
 
       if (left <= 0) {
         timerFill.style.transform = 'scaleX(0)';
+        timerFill.style.backgroundColor = '#c62828';
         clearInterval(timerInterval);
+        stopContinuousSound();
       } else {
         const scaleVal = Math.max(0, left / totalSecs);
         timerFill.style.transform = `scaleX(${scaleVal})`;
+        
+        const currentSecInt = Math.floor(left);
+        if (currentSecInt !== lastPlayedSecond) {
+          lastPlayedSecond = currentSecInt;
+          
+          // Ритмічний "тік" та підвищення тону для останніх 5 секунд
+          if (continuousGainNode && globalTickCtx) {
+            let freq = 500;
+            if (currentSecInt <= 5) {
+              // Плавне або різке підвищення тону від 650 до 950 Гц залежно від наближення до 0
+              freq = 650 + (5 - currentSecInt) * 60; 
+            }
+            
+            continuousOscillator.frequency.setValueAtTime(freq, globalTickCtx.currentTime);
+            continuousGainNode.gain.setValueAtTime(0.12, globalTickCtx.currentTime);
+            continuousGainNode.gain.exponentialRampToValueAtTime(0.001, globalTickCtx.currentTime + 0.08);
+          }
+        }
+
+        if (left <= 5) {
+          timerFill.style.backgroundColor = '#c62828';
+        } else {
+          timerFill.style.backgroundColor = '';
+        }
       }
     }, 50);
-  } else if (state.timerState === 'expired') {
-    if (timerInterval) clearInterval(timerInterval);
-    timerFill.style.transform = 'scaleX(0)';
   } else {
     if (timerInterval) clearInterval(timerInterval);
-    timerFill.style.transform = 'scaleX(1)';
+    stopContinuousSound();
+    
+    if (state.timerState === 'expired') {
+      timerFill.style.transform = 'scaleX(0)';
+      timerFill.style.backgroundColor = '#c62828';
+    } else {
+      timerFill.style.transform = 'scaleX(1)';
+      timerFill.style.backgroundColor = '';
+    }
   }
 }
 
-async function loadAnswersAndVotes(state, currentRoundNum) {
-  const votesQuery = query(
-    collection(db, 'votes'),
-    where('roomCode', '==', roomCode)
-  );
-  const answersQuery = query(
-    collection(db, 'answers'),
-    where('roomCode', '==', roomCode)
-  );
-  const questionsQuery = query(
-    collection(db, 'questions'),
-    where('roomCode', '==', roomCode)
-  );
+function stopContinuousSound() {
+  if (continuousOscillator) {
+    try {
+      continuousOscillator.stop();
+      continuousOscillator.disconnect();
+    } catch (e) {}
+    continuousOscillator = null;
+  }
+}
 
-  const votesSnap = await getDocs(votesQuery);
+let lastShowQuestionState = false;
+
+async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
+  const votesQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
+  const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
+  const questionsQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
+
+  const [votesSnap, answersSnap, qSnapshot] = await Promise.all([
+    getDocs(votesQuery),
+    getDocs(answersQuery),
+    getDocs(questionsQuery),
+  ]);
+
   let roundAnswers = state.shuffledAnswers || [];
 
   if (roundAnswers.length === 0) {
-    const answersSnap = await getDocs(answersQuery);
-    const questionsSnap = await getDocs(questionsQuery);
     let currentQ = { correctAnswer: '', wrongAnswer: '' };
 
-    questionsSnap.forEach((docSnap) => {
+    qSnapshot.forEach((docSnap) => {
       const q = docSnap.data();
       if (Number(q.roundNum) === Number(currentRoundNum)) currentQ = q;
     });
@@ -220,44 +284,62 @@ async function loadAnswersAndVotes(state, currentRoundNum) {
     }
   }
 
+  // Визначаємо, чи світчер щойно увімкнувся (перехід з false у true)
+  const isNewlyShown = state.showQuestion && !lastShowQuestionState;
+  lastShowQuestionState = !!state.showQuestion;
+
   let listHtml = '';
   if (roundAnswers.length === 0) {
     listHtml = `<div class="answer-item" style="border-left-color: #ffb74d; color: #aaa;">Очікуємо на варіанти від гравців...</div>`;
   } else {
     roundAnswers.forEach((item, index) => {
       let voters = [];
+      const isCorrect = item.id === 'correct' + currentRoundNum || (item.id && item.id.startsWith('correct'));
+      const isWrong = item.id === 'wrong' + currentRoundNum || (item.id && item.id.startsWith('wrong'));
+
       votesSnap.forEach((vDoc) => {
         const v = vDoc.data();
-        if (
-          Number(v.roundNum) === Number(currentRoundNum) &&
-          v.votedAnswerId === item.id
-        ) {
-          voters.push(v.userName);
+        if (Number(v.roundNum) === Number(currentRoundNum)) {
+          if (
+            (v.votedAnswerId && (v.votedAnswerId === item.id || v.votedAnswerId === item.answer)) ||
+            (v.votedAnswerText && v.votedAnswerText === item.answer) ||
+            (v.votedAnswer && v.votedAnswer === item.answer)
+          ) {
+            voters.push(v.userName);
+          }
         }
       });
 
+      // Додаємо клас анімації ТІЛЬКИ коли варіанти щойно з'явилися
+      const animClass = isNewlyShown ? 'answer-item-animate' : '';
+      const delay = index * 0.15;
+      const styleAttr = isNewlyShown 
+        ? `display: flex; justify-content: space-between; align-items: flex-end; animation-delay: ${delay}s;` 
+        : `display: flex; justify-content: space-between; align-items: flex-end;`;
+
       listHtml += `
-        <div class="answer-item" style="display: flex; justify-content: space-between; align-items: flex-end;">
+        <div class="answer-item ${animClass}" style="${styleAttr}">
           <div style="display: flex; flex-direction: column; flex-grow: 1; margin-right: 15px;">
             <div style="font-size: 20px; font-weight: bold; margin-bottom: 8px;"><b>${
               index + 1
             }.</b> ${item.answer}</div>
       `;
+
       if (state.showVoters) {
-        if (item.id && item.id.startsWith('correct')) {
-          listHtml += `<div><span class="correct-tag" style="margin: 0;">✅ Правильна відповідь</span></div>`;
-        } else if (item.id && item.id.startsWith('wrong')) {
-          listHtml += `<div><span style="display: inline-block; background: #c62828; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">😡 Відповідь-пастка</span></div>`;
+        if (isCorrect) {
+          listHtml += `<div><span class="correct-tag question-animate" style="margin: 0;">✅ Правильна відповідь</span></div>`;
+        } else if (isWrong) {
+          listHtml += `<div><span class="question-animate" style="display: inline-block; background: #c62828; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">😡 Відповідь-пастка</span></div>`;
         } else {
           const authorPoints = voters.length;
           listHtml += `
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <div class="question-animate" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <span class="author-tag" style="margin: 0;">😎 Автор: ${
                 item.userName
               }</span>
               ${
                 authorPoints > 0
-                  ? `<b style="color: #03dac6; font-size: 14px;">+${authorPoints}${
+                  ? `<b style="color: #03dac6; font-size: 14px;">+${authorPoints}&nbsp;${
                       authorPoints === 1
                         ? 'бал'
                         : authorPoints < 5
@@ -273,12 +355,12 @@ async function loadAnswersAndVotes(state, currentRoundNum) {
       listHtml += `</div>`;
 
       if (state.showVoters && voters.length > 0) {
-        listHtml += `<div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end;">`;
+        listHtml += `<div class="question-animate" style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end;">`;
         voters.forEach((v) => {
           let pointsText = '';
-          if (item.id && item.id.startsWith('correct')) {
+          if (isCorrect) {
             pointsText = ' <b style="color: #2e7d32;">+2</b>';
-          } else if (item.id && item.id.startsWith('wrong')) {
+          } else if (isWrong) {
             pointsText = ' <b style="color: #ff5252;">-1</b>';
           }
           listHtml += `<span style="background: #ffffff; color: #3700b3; padding: 5px 12px; border-radius: 6px; font-size: 15px; white-space: nowrap; margin: 0; font-weight: 500;">👤 ${v}${pointsText}</span>`;
@@ -302,23 +384,16 @@ async function loadAnswersAndVotes(state, currentRoundNum) {
   }
 }
 
-async function loadLeaderboardData() {
-  const answersQuery = query(
-    collection(db, 'answers'),
-    where('roomCode', '==', roomCode)
-  );
-  const votesQuery = query(
-    collection(db, 'votes'),
-    where('roomCode', '==', roomCode)
-  );
-  const questionsQuery = query(
-    collection(db, 'questions'),
-    where('roomCode', '==', roomCode)
-  );
+async function loadLeaderboardData(roomCode) {
+  const votesQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
+  const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
+  const questionsQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
 
-  const answersSnap = await getDocs(answersQuery);
-  const votesSnap = await getDocs(votesQuery);
-  const questionsSnap = await getDocs(questionsQuery);
+  const [answersSnap, votesSnap, questionsSnap] = await Promise.all([
+    getDocs(answersQuery),
+    getDocs(votesQuery),
+    getDocs(questionsQuery),
+  ]);
 
   const roundDetails = {};
   questionsSnap.forEach((docSnap) => {
@@ -335,6 +410,7 @@ async function loadLeaderboardData() {
     const a = docSnap.data();
     const ansId = a.id || docSnap.id;
     answerAuthorMap[ansId] = a.userName;
+    answerAuthorMap[a.answer] = a.userName;
   });
 
   const scores = {};
@@ -350,12 +426,12 @@ async function loadLeaderboardData() {
   votesSnap.forEach((d) => {
     const vote = d.data();
     const voter = vote.userName;
-    const votedId = vote.votedAnswerId;
+    const votedId = vote.votedAnswerId || vote.votedAnswerText || vote.votedAnswer;
     const rNum = Number(vote.roundNum);
     if (!voter || !votedId) return;
     if (scores[voter] === undefined) scores[voter] = 0;
-    const details = roundDetails[rNum] || {};
 
+    const details = roundDetails[rNum] || {};
     if (votedId === details.correctId) {
       scores[voter] += 2;
     } else if (votedId === details.wrongId) {
@@ -392,3 +468,8 @@ async function loadLeaderboardData() {
     lbTable.innerHTML = lbHtml;
   }
 }
+
+// Запуск ініціалізації дошки
+window.onload = function () {
+  initBoard();
+};

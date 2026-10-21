@@ -14,33 +14,35 @@
     <div class="card">
       <h1>🎭 Гра "Блеф"</h1>
       <p class="subtitle">Ласкаво просимо! Оберіть дію:</p>
-
+      
       <button class="btn btn-primary" onclick="openCreateModal()">
-        👑 Створити гру
+        👑 Створити нову гру
       </button>
 
-      <button class="btn btn-secondary" onclick="openSessionsModal()">
-      🗂️ Переглянути сесії
-      </button>
-
-      <button class="btn btn-success" onclick="openJoinModal()">
+      <button class="btn btn-secondary" onclick="openJoinModal()">
         🎮 Доєднатися до гри
+      </button>
+
+      <!-- Розділювальна смужка -->
+      <hr style="border: none; border-top: 2px dashed #333; margin: 20px 0; width: 100%;">
+
+      <button class="btn btn-outline" onclick="openSessionsModal()">
+        📂 Архів ігрових сесій
       </button>
     </div>
 
-    <!-- 1. Модальне вікно: Створити гру (Адмін) -->
+    <!-- 1. Модальне вікно створення сесії (для ведучого) -->
     <div id="createModal" class="modal-overlay">
       <div class="modal">
         <h3>Створення нової сесії</h3>
         <p style="color: #aaa; font-size: 14px; margin-bottom: 5px">
-          Введіть пароль для цієї гри:
+          Встановіть пароль адміністратора для цієї сесії:
         </p>
-
         <div class="password-container">
           <input
             type="password"
             id="adminPasswordInput"
-            placeholder="Пароль кімнати"
+            placeholder="Пароль сесії"
             onkeydown="handleKeyPress(event, 'create')"
           />
           <button
@@ -52,9 +54,7 @@
             👁️
           </button>
         </div>
-
-        <div id="errorMsg" class="error-msg">Введіть пароль!</div>
-
+        <div id="errorMsg" class="error-msg">Будь ласка, вкажіть пароль!</div>
         <div class="modal-buttons">
           <button class="modal-btn btn-cancel" onclick="closeModal('createModal')">
             Скасувати
@@ -66,11 +66,45 @@
       </div>
     </div>
 
-    <!-- 2. Модальне вікно: Переглянути сесії -->
+    <!-- 2. Модальне вікно приєднання гравця за кодом -->
+    <div id="joinModal" class="modal-overlay">
+      <div class="modal">
+        <h3>Приєднання до гри</h3>
+        <p style="color: #aaa; font-size: 14px; margin-bottom: 5px">
+          Введіть 4-значний код кімнати:
+        </p>
+        <div class="password-container">
+          <input
+            type="text"
+            id="joinCodeInput"
+            placeholder="Наприклад: ABCD"
+            maxlength="4"
+            style="text-transform: uppercase; letter-spacing: 2px; font-weight: bold;"
+            onkeydown="handleKeyPress(event, 'join')"
+          />
+        </div>
+        <div id="joinErrorMsg" class="error-msg">Кімнату не знайдено!</div>
+        <div class="modal-buttons">
+          <button class="modal-btn btn-cancel" onclick="closeModal('joinModal')">
+            Скасувати
+          </button>
+          <button class="modal-btn btn-secondary" onclick="verifyAndJoinGame()">
+            Увійти
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Модальне вікно архіву сесій -->
     <div id="sessionsModal" class="modal-overlay">
-      <div class="modal" style="max-width: 420px;">
-        <h3>Архів сесій гри</h3>
-        <div id="sessionsList">Завантаження...</div>
+      <div class="modal">
+        <h3>📂 Архів ігрових сесій</h3>
+        <p style="color: #aaa; font-size: 13px; margin-bottom: 10px">
+          Оберіть сесію зі списку для входу:
+        </p>
+        <div id="sessionsList" class="sessions-list">
+          Завантаження...
+        </div>
         <div class="modal-buttons" style="margin-top: 15px;">
           <button class="modal-btn btn-cancel" onclick="closeModal('sessionsModal')">
             Закрити
@@ -79,48 +113,18 @@
       </div>
     </div>
 
-    <!-- 3. Модальне вікно: Доєднатися до гри (Гравець) -->
-    <div id="joinModal" class="modal-overlay">
-      <div class="modal">
-        <h3>Введіть код гри</h3>
-
-        <div class="password-container">
-          <input
-            type="text"
-            id="joinCodeInput"
-            placeholder="4-значний код кімнати"
-            maxlength="4"
-            style="text-transform: uppercase"
-            onkeydown="handleKeyPress(event, 'join')"
-          />
-        </div>
-
-        <div id="joinErrorMsg" class="error-msg">Кімнату не знайдено!</div>
-
-        <div class="modal-buttons">
-          <button class="modal-btn btn-cancel" onclick="closeModal('joinModal')">
-            Скасувати
-          </button>
-          <button class="modal-btn btn-success" onclick="verifyAndJoinGame()">
-            Увійти
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 4. Модальне вікно: Введення пароля сесії з архіву -->
+    <!-- 4. Модальне вікно введення пароля для вибраної архівній сесії -->
     <div id="sessionPasswordModal" class="modal-overlay">
       <div class="modal">
-        <h3>Вхід до сесії</h3>
+        <h3>Вхід до сесії <span id="targetSessionCode" style="color: #03dac6;"></span></h3>
         <p style="color: #aaa; font-size: 14px; margin-bottom: 5px">
-          Введіть пароль для сесії <span id="targetSessionCode" style="color: #03dac6; font-weight: bold;"></span>:
+          Введіть пароль цієї сесії:
         </p>
-
         <div class="password-container">
           <input
             type="password"
             id="sessionPasswordInput"
-            placeholder="Пароль сесії"
+            placeholder="Пароль"
             onkeydown="handleKeyPress(event, 'sessionLogin')"
           />
           <button
@@ -132,9 +136,7 @@
             👁️
           </button>
         </div>
-
         <div id="sessionErrorMsg" class="error-msg">Неправильний пароль!</div>
-
         <div class="modal-buttons">
           <button class="modal-btn btn-cancel" onclick="closeModal('sessionPasswordModal')">
             Скасувати

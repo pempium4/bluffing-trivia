@@ -16,8 +16,8 @@
         <div class="mini-spinner"></div>
         <span>Збереження...</span>
       </div>
-      <h1>🎮 Панель керування грою</h1>
-      <div id="roomCodeDisplay" style="text-align: center; color: #03dac6; font-size: 15px; margin-bottom: 25px; font-weight: 750; letter-spacing: 1px;">Код кімнати: </div>
+      <h1 style="margin-bottom: 16px;">🎮 Панель керування грою</h1>
+      <div id="roomCodeDisplay" style="text-align: center; color: #03dac6; font-size: 20px; font-weight: bold; margin-bottom: 16px; letter-spacing: 1px;"></div>
       <div id="loading">Завантаження панелі...</div>
       <div id="adminContent" style="display: none">
         <div class="card">
@@ -48,7 +48,7 @@
 
         <!-- Картка: Посилання на табло -->
         <div class="card" style="padding: 12px 15px; margin-bottom: 20px">
-          <a href="../board/board.html" target="_blank" class="board-link-btn" id="boardLinkBtn">
+          <a href="../board/board.html" target="_blank" class="board-link-btn">
             🖥️ Перейти до дошки
           </a>
         </div>
@@ -114,19 +114,6 @@
                 🗳️ Голосування
               </button>
             </div>
-          </div>
-
-          <!-- 3. Відкрити запитання учасникам (без лінії) -->
-          <div class="switch-container">
-            <span class="switch-label">Відкрити запитання учасникам</span>
-            <label class="switch">
-              <input
-                type="checkbox"
-                id="boardToggle"
-                onchange="toggleBoardToPlayers(this.checked)"
-              />
-              <span class="slider"></span>
-            </label>
           </div>
 
           <!-- 4. Показати варіанти відповідей (без лінії) -->
@@ -316,6 +303,33 @@
             border-top: 1px solid #333;
           "
         >
+
+          <!-- Прихований файл-інпут для CSV -->
+          <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleCsvImport(event)">
+
+          <!-- Кнопка Імпорту (margin-right: auto виштовхує її вліво) -->
+          <button
+            type="button"
+            onclick="document.getElementById('csvFileInput').click()"
+            style="
+              background: #374151;
+              color: #fff;
+              padding: 10px 16px;
+              border-radius: 8px;
+              border: none;
+              cursor: pointer;
+              margin-right: auto;
+            "
+          >
+            📂 Імпорт CSV
+          </button>
+
+          <!-- Кнопка Видалити кімнату (теж притискається вліво, одразу за імпортом) -->
+          <button id="openDeleteSessionModalBtn" 
+          style="background: #c62828; color: #fff; padding: 10px 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; margin-right: auto;">
+          Видалити кімнату
+          </button>
+
           <button
             id="cancelModalBtn"
             style="
@@ -375,7 +389,7 @@
           box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
         "
       >
-        <h3 style="color: #ff5252; margin-top: 0">⚠️ Очищення дошки</h3>
+        <h3 style="color: #c62828; margin-top: 0">⚠️ Очищення дошки</h3>
         <p style="color: #ccc; font-size: 15px; margin-bottom: 20px">
           Ви точно хочете очистити варіанти та голоси всіх учасників?
         </p>
@@ -407,6 +421,21 @@
           >
             Очистити
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модальне вікно підтвердження видалення кімнати -->
+    <div id="deleteSessionModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 2000;">
+      <div style="background: #1e1e1e; padding: 30px; border-radius: 12px; width: 420px; text-align: center; border: 1px solid #444; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <h3 style="color: #ff5252; margin-top: 0; margin-bottom: 15px; font-size: 20px;">Видалення кімнати</h3>
+        <p style="color: #ccc; font-size: 15px; line-height: 1.5; margin-bottom: 25px;">
+          ⚠️ Ви впевнені, що хочете повністю видалити цю сесію, усі запитання, відповіді та голоси? Цю дію неможливо скасувати!
+        </p>
+        <!-- Кнопки по центру з рівними відступами -->
+        <div style="display: flex; justify-content: center; gap: 15px;">
+          <button id="cancelDeleteSessionBtn" style="background: #444; color: #fff; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">Скасувати</button>
+          <button id="confirmDeleteSessionBtn" style="background: #c62828; color: #fff; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Видалити</button>
         </div>
       </div>
     </div>
