@@ -76,14 +76,14 @@ p.subtitle {
 }
 
 .btn-outline {
-  background: transparent;
+  background: #bb86fc;
   border: 1px solid #444;
-  color: #aaa;
+  color: #121212;
 }
 
 .btn-outline:hover {
-  border-color: #bb86fc;
-  color: #fff;
+  background: #c698ff;
+  color: #121212;
 }
 
 /* Модальні вікна */

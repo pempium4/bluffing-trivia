@@ -779,6 +779,77 @@ function handleAdminTimer(state) {
   }
 }
 
+// Елементи нового модального вікна видалення
+const deleteSessionModal = document.getElementById('deleteSessionModal');
+const openDeleteBtn = document.getElementById('openDeleteSessionModalBtn');
+const cancelDeleteBtn = document.getElementById('cancelDeleteSessionBtn');
+const confirmDeleteBtn = document.getElementById('confirmDeleteSessionBtn');
+
+// Відкрити модальне вікно підтвердження
+if (openDeleteBtn) {
+  openDeleteBtn.onclick = (e) => {
+    e.preventDefault();
+    // Ховаємо модалку налаштувань, щоб вона не перекривала вікно підтвердження
+    if (modal) modal.style.display = 'none'; 
+    // Показуємо вікно підтвердження видалення
+    if (deleteSessionModal) deleteSessionModal.style.display = 'flex';
+  };
+}
+
+// Закрити модальне вікно без видалення
+if (cancelDeleteBtn) {
+  cancelDeleteBtn.onclick = () => {
+    if (deleteSessionModal) deleteSessionModal.style.display = 'none';
+  };
+}
+
+// Підтвердження видалення кімнати
+if (confirmDeleteBtn) {
+  confirmDeleteBtn.onclick = async () => {
+    if (deleteSessionModal) deleteSessionModal.style.display = 'none';
+    if (!sessionInfo || !sessionInfo.docRef) return;
+
+    showLoader('Видалення сесії та даних...');
+    try {
+      const roomCode = sessionInfo.roomCode;
+
+      // 1. Видаляємо всі запитання цієї кімнати
+      const qQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
+      const qSnap = await getDocs(qQuery);
+      for (const d of qSnap.docs) {
+        await deleteDoc(doc(db, 'questions', d.id));
+      }
+
+      // 2. Видаляємо всі відповіді цієї кімнати
+      const aQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
+      const aSnap = await getDocs(aQuery);
+      for (const d of aSnap.docs) {
+        await deleteDoc(doc(db, 'answers', d.id));
+      }
+
+      // 3. Видаляємо всі голоси цієї кімнати
+      const vQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
+      const vSnap = await getDocs(vQuery);
+      for (const d of vSnap.docs) {
+        await deleteDoc(doc(db, 'votes', d.id));
+      }
+
+      // 4. Видаляємо сам документ сесії
+      await deleteDoc(sessionInfo.docRef);
+
+      // 5. Очищуємо локальне сховище і повертаємо на index.html
+      localStorage.removeItem('currentSessionCode');
+      hideLoader();
+      window.location.href = '../index.html';
+
+    } catch (err) {
+      console.error('Помилка при видаленні сесії:', err);
+      hideLoader();
+      alert('Сталася помилка при видаленні сесії.');
+    }
+  };
+}
+
 function showLoader(text) {
   const loader = document.getElementById('adminLoader');
   if (loader) {
