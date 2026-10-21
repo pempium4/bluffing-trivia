@@ -119,3 +119,30 @@ h1 {
   color: #aaa;
   margin-top: 50px;
 }
+
+/* Плавна зміна лише прозорості для запитання (без стрибків блоку) */
+@keyframes fadeInOnly {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.question-animate {
+  animation: fadeInOnly 0.5s ease-in-out forwards;
+}
+
+/* Каскадна поява варіантів зверху вниз зі збільшеним часом до 0.5с */
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.answer-item-animate {
+  opacity: 0;
+  animation: slideDownFade 0.5s ease-out forwards;
+}

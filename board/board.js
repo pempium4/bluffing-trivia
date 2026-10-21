@@ -115,11 +115,21 @@ async function loadQuestionText(currentRoundNum, roomCode) {
     }
   });
 
-  const questionBlock = document.getElementById('boardQuestion');
-  if (questionBlock) {
-    questionBlock.innerText = foundText;
+  const questionTextEl = document.getElementById('boardQuestionText');
+  if (questionTextEl) {
+    // Анімуємо тільки тоді, коли текст реально змінився
+    if (questionTextEl.innerText !== foundText) {
+      questionTextEl.classList.remove('question-animate');
+      questionTextEl.innerText = foundText;
+      void questionTextEl.offsetWidth; // Примусовий reflow для перезапуску анімації
+      questionTextEl.classList.add('question-animate');
+    }
   }
 }
+
+let globalTickCtx = null;
+let continuousOscillator = null;
+let continuousGainNode = null;
 
 function handleTimer(state) {
   const timerFill = document.getElementById('timerBarFill');
@@ -129,39 +139,36 @@ function handleTimer(state) {
     if (timerInterval) clearInterval(timerInterval);
     const totalSecs = Number(state.timerSeconds) || 30;
     const startTime = Number(state.timerStartTime);
-    
-    // Функція генерації звуку: постійний тік, який стає вищим на останніх секундах
-    function playTickSound(timeLeft) {
-      try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
 
-        let freq = 500; // Базова частота для звичайного тікання
-        if (timeLeft <= 5) {
-          // В останні 5 секунд частота різко зростає від 650 до 1050 Гц
-          const step = (5 - timeLeft);
-          freq = 650 + (step * 100);
-        }
-
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        osc.type = 'sine';
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        // Корочший та м'якіший звук
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.05);
-      } catch (e) {
-        console.log('Помилка відтворення звуку:', e);
+    // Ініціалізуємо один стабільний аудіо-потік на весь час таймера
+    try {
+      if (!globalTickCtx || globalTickCtx.state === 'closed') {
+        globalTickCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
+      if (globalTickCtx.state === 'suspended') {
+        globalTickCtx.resume();
+      }
+
+      if (continuousOscillator) {
+        try { continuousOscillator.stop(); } catch(e){}
+      }
+
+      continuousOscillator = globalTickCtx.createOscillator();
+      continuousGainNode = globalTickCtx.createGain();
+
+      continuousOscillator.type = 'sine';
+      continuousOscillator.frequency.setValueAtTime(500, globalTickCtx.currentTime);
+      
+      continuousGainNode.gain.setValueAtTime(0.001, globalTickCtx.currentTime);
+
+      continuousOscillator.connect(continuousGainNode);
+      continuousGainNode.connect(globalTickCtx.destination);
+      continuousOscillator.start();
+    } catch (e) {
+      console.log('Помилка ініціалізації аудіо:', e);
     }
 
     let lastPlayedSecond = -1;
-
     timerInterval = setInterval(() => {
       const now = new Date().getTime();
       const elapsedSec = (now - startTime) / 1000;
@@ -171,14 +178,27 @@ function handleTimer(state) {
         timerFill.style.transform = 'scaleX(0)';
         timerFill.style.backgroundColor = '#c62828';
         clearInterval(timerInterval);
+        stopContinuousSound();
       } else {
         const scaleVal = Math.max(0, left / totalSecs);
         timerFill.style.transform = `scaleX(${scaleVal})`;
-
+        
         const currentSecInt = Math.floor(left);
         if (currentSecInt !== lastPlayedSecond) {
           lastPlayedSecond = currentSecInt;
-          playTickSound(currentSecInt);
+          
+          // Ритмічний "тік" та підвищення тону для останніх 5 секунд
+          if (continuousGainNode && globalTickCtx) {
+            let freq = 500;
+            if (currentSecInt <= 5) {
+              // Плавне або різке підвищення тону від 650 до 950 Гц залежно від наближення до 0
+              freq = 650 + (5 - currentSecInt) * 60; 
+            }
+            
+            continuousOscillator.frequency.setValueAtTime(freq, globalTickCtx.currentTime);
+            continuousGainNode.gain.setValueAtTime(0.12, globalTickCtx.currentTime);
+            continuousGainNode.gain.exponentialRampToValueAtTime(0.001, globalTickCtx.currentTime + 0.08);
+          }
         }
 
         if (left <= 5) {
@@ -188,16 +208,31 @@ function handleTimer(state) {
         }
       }
     }, 50);
-  } else if (state.timerState === 'expired') {
-    if (timerInterval) clearInterval(timerInterval);
-    timerFill.style.transform = 'scaleX(0)';
-    timerFill.style.backgroundColor = '#c62828';
   } else {
     if (timerInterval) clearInterval(timerInterval);
-    timerFill.style.transform = 'scaleX(1)';
-    timerFill.style.backgroundColor = '';
+    stopContinuousSound();
+    
+    if (state.timerState === 'expired') {
+      timerFill.style.transform = 'scaleX(0)';
+      timerFill.style.backgroundColor = '#c62828';
+    } else {
+      timerFill.style.transform = 'scaleX(1)';
+      timerFill.style.backgroundColor = '';
+    }
   }
 }
+
+function stopContinuousSound() {
+  if (continuousOscillator) {
+    try {
+      continuousOscillator.stop();
+      continuousOscillator.disconnect();
+    } catch (e) {}
+    continuousOscillator = null;
+  }
+}
+
+let lastShowQuestionState = false;
 
 async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
   const votesQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
@@ -249,6 +284,10 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
     }
   }
 
+  // Визначаємо, чи світчер щойно увімкнувся (перехід з false у true)
+  const isNewlyShown = state.showQuestion && !lastShowQuestionState;
+  lastShowQuestionState = !!state.showQuestion;
+
   let listHtml = '';
   if (roundAnswers.length === 0) {
     listHtml = `<div class="answer-item" style="border-left-color: #ffb74d; color: #aaa;">Очікуємо на варіанти від гравців...</div>`;
@@ -271,8 +310,15 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
         }
       });
 
+      // Додаємо клас анімації ТІЛЬКИ коли варіанти щойно з'явилися
+      const animClass = isNewlyShown ? 'answer-item-animate' : '';
+      const delay = index * 0.15;
+      const styleAttr = isNewlyShown 
+        ? `display: flex; justify-content: space-between; align-items: flex-end; animation-delay: ${delay}s;` 
+        : `display: flex; justify-content: space-between; align-items: flex-end;`;
+
       listHtml += `
-        <div class="answer-item" style="display: flex; justify-content: space-between; align-items: flex-end;">
+        <div class="answer-item ${animClass}" style="${styleAttr}">
           <div style="display: flex; flex-direction: column; flex-grow: 1; margin-right: 15px;">
             <div style="font-size: 20px; font-weight: bold; margin-bottom: 8px;"><b>${
               index + 1
@@ -281,13 +327,13 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
 
       if (state.showVoters) {
         if (isCorrect) {
-          listHtml += `<div><span class="correct-tag" style="margin: 0;">✅ Правильна відповідь</span></div>`;
+          listHtml += `<div><span class="correct-tag question-animate" style="margin: 0;">✅ Правильна відповідь</span></div>`;
         } else if (isWrong) {
-          listHtml += `<div><span style="display: inline-block; background: #c62828; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">😡 Відповідь-пастка</span></div>`;
+          listHtml += `<div><span class="question-animate" style="display: inline-block; background: #c62828; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">😡 Відповідь-пастка</span></div>`;
         } else {
           const authorPoints = voters.length;
           listHtml += `
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <div class="question-animate" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <span class="author-tag" style="margin: 0;">😎 Автор: ${
                 item.userName
               }</span>
@@ -309,7 +355,7 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
       listHtml += `</div>`;
 
       if (state.showVoters && voters.length > 0) {
-        listHtml += `<div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end;">`;
+        listHtml += `<div class="question-animate" style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end;">`;
         voters.forEach((v) => {
           let pointsText = '';
           if (isCorrect) {
