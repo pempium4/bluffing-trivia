@@ -298,17 +298,14 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
       const isWrong = item.id === 'wrong' + currentRoundNum || (item.id && item.id.startsWith('wrong'));
 
       votesSnap.forEach((vDoc) => {
-        const v = vDoc.data();
-        if (Number(v.roundNum) === Number(currentRoundNum)) {
-          if (
-            (v.votedAnswerId && (v.votedAnswerId === item.id || v.votedAnswerId === item.answer)) ||
-            (v.votedAnswerText && v.votedAnswerText === item.answer) ||
-            (v.votedAnswer && v.votedAnswer === item.answer)
-          ) {
-            voters.push(v.userName);
-          }
-        }
-      });
+       const v = vDoc.data();
+       if (Number(v.roundNum) === Number(currentRoundNum)) {
+         // Сувора перевірка виключно за унікальним ID варіанта
+         if (v.votedAnswerId && v.votedAnswerId === item.id) {
+           voters.push(v.userName);
+         }
+       }
+     });
 
       // Додаємо клас анімації ТІЛЬКИ коли варіанти щойно з'явилися
       const animClass = isNewlyShown ? 'answer-item-animate' : '';
@@ -409,8 +406,7 @@ async function loadLeaderboardData(roomCode) {
   answersSnap.forEach((docSnap) => {
     const a = docSnap.data();
     const ansId = a.id || docSnap.id;
-    answerAuthorMap[ansId] = a.userName;
-    answerAuthorMap[a.answer] = a.userName;
+    answerAuthorMap[ansId] = a.userName; // Зберігаємо зв'язок ID -> Автор відповіді
   });
 
   const scores = {};
@@ -426,18 +422,18 @@ async function loadLeaderboardData(roomCode) {
   votesSnap.forEach((d) => {
     const vote = d.data();
     const voter = vote.userName;
-    const votedId = vote.votedAnswerId || vote.votedAnswerText || vote.votedAnswer;
+    const votedId = vote.votedAnswerId; // 👈 Використовуємо виключно ID голосу
     const rNum = Number(vote.roundNum);
     if (!voter || !votedId) return;
     if (scores[voter] === undefined) scores[voter] = 0;
-
     const details = roundDetails[rNum] || {};
+    
     if (votedId === details.correctId) {
       scores[voter] += 2;
     } else if (votedId === details.wrongId) {
       scores[voter] -= 1;
     } else {
-      const author = answerAuthorMap[votedId];
+      const author = answerAuthorMap[votedId]; // Шукаємо автора за унікальним ID варіанта
       if (author) {
         if (scores[author] === undefined) scores[author] = 0;
         scores[author] += 1;

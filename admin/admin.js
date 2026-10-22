@@ -405,11 +405,11 @@ async function loadLiveStatsAndScores(state, roomCode) {
       let voters = [];
       votesSnap.forEach((vDoc) => {
         const v = vDoc.data();
-        if (
-          Number(v.roundNum) === Number(currentRoundNum) &&
-          (v.votedAnswerId === item.id || v.votedAnswerText === item.answer || v.votedAnswer === item.answer)
-        ) {
-          voters.push(v.userName);
+        if (Number(v.roundNum) === Number(currentRoundNum)) {
+          // Суворий пошук виключно за унікальним ID варіанта
+          if (v.votedAnswerId && v.votedAnswerId === item.id) {
+            voters.push(v.userName);
+          }
         }
       });
 
@@ -450,44 +450,40 @@ async function loadLiveStatsAndScores(state, roomCode) {
   });
 
   const answerAuthorMap = {};
-  answersSnap.forEach((docSnap) => {
-    const a = docSnap.data();
-    const ansId = a.id || docSnap.id;
-    answerAuthorMap[ansId] = a.userName;
-    answerAuthorMap[a.answer] = a.userName;
-  });
-
-  const scores = {};
-  answersSnap.forEach((d) => {
-    const a = d.data();
-    if (a.userName) scores[a.userName] = 0;
-  });
-  votesSnap.forEach((d) => {
-    const v = d.data();
-    if (v.userName && scores[v.userName] === undefined) scores[v.userName] = 0;
-  });
-
-  votesSnap.forEach((d) => {
-    const vote = d.data();
-    const voter = vote.userName;
-    const votedId = vote.votedAnswerId || vote.votedAnswerText || vote.votedAnswer;
-    const rNum = Number(vote.roundNum);
-    if (!voter || !votedId) return;
-    if (scores[voter] === undefined) scores[voter] = 0;
-
-    const details = roundDetails[rNum] || {};
-    if (votedId === details.correctId) {
-      scores[voter] += 2;
-    } else if (votedId === details.wrongId) {
-      scores[voter] -= 1;
-    } else {
-      const author = answerAuthorMap[votedId];
-      if (author) {
-        if (scores[author] === undefined) scores[author] = 0;
-        scores[author] += 1;
-      }
-    }
-  });
+ answersSnap.forEach((docSnap) => {
+   const a = docSnap.data();
+   const ansId = a.id || docSnap.id;
+   answerAuthorMap[ansId] = a.userName; // Зберігаємо зв'язок ID -> Автор відповіді
+ });
+ const scores = {};
+ answersSnap.forEach((d) => {
+   const a = d.data();
+   if (a.userName) scores[a.userName] = 0;
+ });
+ votesSnap.forEach((d) => {
+   const v = d.data();
+   if (v.userName && scores[v.userName] === undefined) scores[v.userName] = 0;
+ });
+ votesSnap.forEach((d) => {
+   const vote = d.data();
+   const voter = vote.userName;
+   const votedId = vote.votedAnswerId; // 👈 Використовуємо виключно ID голосу
+   const rNum = Number(vote.roundNum);
+   if (!voter || !votedId) return;
+   if (scores[voter] === undefined) scores[voter] = 0;
+   const details = roundDetails[rNum] || {};
+   if (votedId === details.correctId) {
+     scores[voter] += 2;
+   } else if (votedId === details.wrongId) {
+     scores[voter] -= 1;
+   } else {
+     const author = answerAuthorMap[votedId]; // Шукаємо автора за унікальним ID
+     if (author) {
+       if (scores[author] === undefined) scores[author] = 0;
+       scores[author] += 1;
+     }
+   }
+ });
 
   let scoreList = Object.keys(scores).map((name) => ({
     name,

@@ -30,6 +30,7 @@ let playerIsExpired = false;
 let isSubmittingOrVoting = false;
 let unsubscribeGame = null;
 let sessionInfo = null;
+let lastProcessedRound = null;
 
 // Отримуємо roomCode та знаходимо ID документа сесії у Firestore
 async function getSessionRef() {
@@ -148,8 +149,7 @@ function subscribeToGameState(username, roomCode) {
         v.userName.toLowerCase() === username.toLowerCase()
       ) {
         hasVoted = true;
-        myVotedAnswerText =
-          v.votedAnswerText || v.votedAnswer || 'Обраний варіант';
+        myVotedAnswerText = v.votedAnswerText || 'Обраний варіант';
       }
     });
 
@@ -302,7 +302,16 @@ function renderPhases(status, username) {
       'Запитання № ' + status.currentRoundNum;
     document.getElementById('questionTextSubmit').innerText =
       status.questionText;
-      
+ 
+    // 👇 Очищаємо текстове поле одразу при переході на новий раунд
+    if (lastProcessedRound !== status.currentRoundNum) {
+      lastProcessedRound = status.currentRoundNum;
+      const answerInput = document.getElementById('answer');
+      if (answerInput) {
+        answerInput.value = '';
+      }
+    }
+     
     if (status.hasSubmitted) {
       submitFormArea.style.display = 'none';
       submittedStatusArea.style.display = 'block';
@@ -426,11 +435,11 @@ window.sendVote = async function (encodedAnsId, encodedAnsText) {
   const ansText = decodeURIComponent(encodedAnsText);
   const errDiv = document.getElementById('errorMsg');
   errDiv.style.display = 'none';
-  
+
   isSubmittingOrVoting = true;
   document.getElementById('voteArea').style.display = 'none';
   document.getElementById('voteLoader').style.display = 'block';
-  
+
   try {
     const gameDocSnap = await getDoc(sessionInfo.docRef);
     const currentRoundNum = gameDocSnap.exists()
@@ -440,16 +449,17 @@ window.sendVote = async function (encodedAnsId, encodedAnsText) {
     const newVoteRef = doc(collection(db, 'votes'));
     await setDoc(newVoteRef, {
       userName: username,
-      votedAnswerId: ansId,
-      votedAnswerText: ansText,
+      votedAnswerId: ansId,      // 👈 Головне для пошуку, підрахунку та співставлення
+      votedAnswerText: ansText,  // 👈 Зберігаємо для відображення / історії в базі
       roundNum: currentRoundNum,
-      roomCode: sessionInfo.roomCode, // 👈 Фіксація коду кімнати для голосів
+      roomCode: sessionInfo.roomCode,
       createdAt: new Date().getTime(),
     });
-    
+
     document.getElementById('voteLoader').style.display = 'none';
     document.getElementById('votedStatusArea').style.display = 'block';
     document.getElementById('dispMyVote').innerText = ansText;
+
     setTimeout(function () {
       isSubmittingOrVoting = false;
     }, 3000);
