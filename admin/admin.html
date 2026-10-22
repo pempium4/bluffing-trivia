@@ -251,27 +251,18 @@
 
         <!-- Тіло модалки з таблицею -->
         <div style="padding: 20px; overflow-y: auto; flex-grow: 1">
-          <table
-            style="width: 100%; border-collapse: collapse; text-align: left"
-          >
-            <thead>
-              <tr
-                style="
-                  border-bottom: 2px solid #444;
-                  color: #03dac6;
-                  font-size: 14px;
-                "
-              >
-                <th style="padding: 10px; width: 40px; text-align: center">
-                  ↕
-                </th>
-                <th style="padding: 10px; width: 70px">Раунд №</th>
-                <th style="padding: 10px">Запитання</th>
-                <th style="padding: 10px">Правильна відповідь</th>
-                <th style="padding: 10px">Відповідь-пастка</th>
-                <th style="padding: 10px; width: 40px; text-align: center"></th>
-              </tr>
-            </thead>
+          <table style="width: 100%; border-collapse: collapse; text-align: left">
+              <thead style="border-bottom: 2px solid #444; color: #03dac6; font-size: 14px;">
+                <tr>
+                  <th style="padding: 10px; width: 40px; text-align: center">↕</th>
+                  <th style="padding: 10px; width: 70px">Раунд №</th>
+                  <th style="padding: 10px">Запитання</th>
+                  <th style="padding: 10px">Правильна відповідь</th>
+                  <th style="padding: 10px">Відповідь-пастка</th>
+                  <th style="padding: 10px">URL картинки</th> <!-- 👈 Додали колонку -->
+                  <th style="padding: 10px; width: 40px; text-align: center"></th>
+                </tr>
+              </thead>
             <tbody id="questionsTableBody"></tbody>
           </table>
           <button

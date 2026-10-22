@@ -175,9 +175,10 @@ function openSettingsModal() {
       <tr draggable="true" data-doc-id="${q.id}">
         <td class="drag-handle" title="Перетягніть, щоб змінити порядок">☰</td>
         <td><input type="number" class="q-round" value="${idx + 1}" readonly style="text-align: center; background: #222; color: #888;"></td>
-        <td><input type="text" class="q-text" value="${qText}"></td>
-        <td><input type="text" class="q-correct" value="${q.correctAnswer || ''}"></td>
-        <td><input type="text" class="q-wrong" value="${q.wrongAnswer || ''}"></td>
+        <td><input type="text" class="q-text" value="${qText.replace(/"/g, '&quot;')}"></td>
+        <td><input type="text" class="q-correct" value="${(q.correctAnswer || '').replace(/"/g, '&quot;')}"></td>
+        <td><input type="text" class="q-wrong" value="${(q.wrongAnswer || '').replace(/"/g, '&quot;')}"></td>
+        <td><input type="text" class="q-image" placeholder="URL картинки..." value="${(q.imageUrl || '').replace(/"/g, '&quot;')}"></td>
         <td style="text-align: center;">
           <button class="delete-row-btn" onclick="deleteQuestionRow(this)" title="Видалити раунд">🗑️</button>
         </td>
@@ -241,7 +242,7 @@ window.deleteQuestionRow = function (btn) {
   }
 };
 
-window.addQuestionRow = function (questionVal = '', correctVal = '', wrongVal = '') {
+window.addQuestionRow = function (questionVal = '', correctVal = '', wrongVal = '', imageVal = '') {
   const tbody = document.getElementById('questionsTableBody');
   const tr = document.createElement('tr');
   tr.setAttribute('draggable', 'true');
@@ -251,6 +252,7 @@ window.addQuestionRow = function (questionVal = '', correctVal = '', wrongVal = 
     <td><input type="text" class="q-text" placeholder="Текст запитання..." value="${questionVal.replace(/"/g, '&quot;')}"></td>
     <td><input type="text" class="q-correct" placeholder="Правильна..." value="${correctVal.replace(/"/g, '&quot;')}"></td>
     <td><input type="text" class="q-wrong" placeholder="Пастка..." value="${wrongVal.replace(/"/g, '&quot;')}"></td>
+    <td><input type="text" class="q-image" placeholder="URL картинки..." value="${imageVal.replace(/"/g, '&quot;')}"></td>
     <td style="text-align: center;">
       <button class="delete-row-btn" onclick="deleteQuestionRow(this)" title="Видалити раунд">🗑️</button>
     </td>
@@ -258,7 +260,7 @@ window.addQuestionRow = function (questionVal = '', correctVal = '', wrongVal = 
   tbody.appendChild(tr);
   if (typeof initDragAndDrop === 'function') initDragAndDrop();
   if (typeof reindexRounds === 'function') reindexRounds();
-};
+ };
 
 document.getElementById('saveQuestionsBtn').onclick = async () => {
   if (!sessionInfo) return;
@@ -273,8 +275,9 @@ document.getElementById('saveQuestionsBtn').onclick = async () => {
     const text = row.querySelector('.q-text').value.trim();
     const correctAnswer = row.querySelector('.q-correct').value.trim();
     const wrongAnswer = row.querySelector('.q-wrong').value.trim();
+    const imageUrl = row.querySelector('.q-image').value.trim(); // 👈 Збираємо URL
     const docId = row.getAttribute('data-doc-id');
-    const questionData = { roomCode: sessionInfo.roomCode, roundNum, text, correctAnswer, wrongAnswer };
+    const questionData = { roomCode: sessionInfo.roomCode, roundNum, text, correctAnswer, wrongAnswer, imageUrl };
 
     if (docId) {
       await setDoc(doc(db, 'questions', docId), questionData);
@@ -720,23 +723,37 @@ window.handleCsvImport = function (event) {
     const text = e.target.result;
     const lines = text.split(/\r\n|\n/);
     let container = document.getElementById('questionsTableBody') || document.querySelector('tbody');
-    
+   
     if (!container) {
       alert('Помилка: таблиця для запитань не знайдена на сторінці!');
       return;
     }
-
+ 
     lines.forEach((line, index) => {
       if (!line.trim()) return;
-      const separator = line.includes(';') ? ';' : ',';
-      const parts = line.split(separator).map((p) => p.trim().replace(/^["']|["']$/g, ''));
+ 
+      // Професійний парсер CSV рядка з урахуванням лапок (не ламається на коми всередині тексту)
+      let parts = [];
+      let row = line;
+      let matches = row.match(/(".*?"|[^",;\t]+)(?=\s*[,\t;]|\s*$)/g);
+      
+      // Якщо складний regex не підійшов, використовуємо простий безпечний спліт за крапкою з комою або табом
+      if (!matches || matches.length < 2) {
+        const separator = line.includes(';') ? ';' : (line.includes('\t') ? '\t' : ',');
+        parts = line.split(separator).map(p => p.trim().replace(/^["']|["']$/g, ''));
+      } else {
+        parts = matches.map(p => p.trim().replace(/^["'](.+?)["']$/, '$1').replace(/""/g, '"'));
+      }
+ 
       if (parts.length >= 2 && index === 0 && (parts[0].toLowerCase().includes('запит') || parts[0].toLowerCase().includes('question'))) {
         return;
       }
+ 
       if (parts.length >= 2) {
         const questionText = parts[0] || '';
         const correctAns = parts[1] || '';
         const wrongAns = parts[2] || '';
+        const imageUrl = parts[3] ? parts[3].replace(/^"+|"+$/g, '"') : '';
         if (typeof window.addQuestionRow === 'function') {
           window.addQuestionRow(questionText, correctAns, wrongAns);
         }
@@ -745,7 +762,7 @@ window.handleCsvImport = function (event) {
     event.target.value = '';
   };
   reader.readAsText(file, 'UTF-8');
-};
+ };
 
 let adminTimerInterval = null;
 

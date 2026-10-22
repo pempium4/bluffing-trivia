@@ -107,25 +107,53 @@ async function loadQuestionText(currentRoundNum, roomCode) {
   const qQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
   const qSnapshot = await getDocs(qQuery);
   let foundText = 'Запитання відсутнє';
-
+  let foundImage = '';
+  
   qSnapshot.forEach((docSnap) => {
     const q = docSnap.data();
     if (Number(q.roundNum) === Number(currentRoundNum)) {
       foundText = q.text || q.question || foundText;
+      foundImage = q.imageUrl || ''; 
     }
   });
-
+ 
+  const questionCard = document.getElementById('boardQuestionCard');
+  if (questionCard) {
+    let questionImgEl = document.getElementById('boardQuestionImage');
+    
+    // Створюємо елемент динамічно з вирівнюванням по центру та шириною до 100%
+    if (!questionImgEl) {
+      questionImgEl = document.createElement('img');
+      questionImgEl.id = 'boardQuestionImage';
+      questionImgEl.style.cssText = 'display: none; width: 100%; border-radius: 8px; margin-bottom: 16px; object-fit: contain; margin-left: auto; margin-right: auto;';
+      questionCard.prepend(questionImgEl);
+    }
+ 
+    if (foundImage && foundImage.trim() !== '') {
+      // Перезапускаємо анімацію для картинки так само, як для тексту
+      if (questionImgEl.src !== foundImage) {
+        questionImgEl.src = foundImage;
+      }
+      questionImgEl.style.display = 'block';
+      questionImgEl.classList.remove('question-animate');
+      void questionImgEl.offsetWidth; // Примусовий рефлов для перезапуску анімації
+      questionImgEl.classList.add('question-animate');
+    } else {
+      questionImgEl.style.display = 'none';
+      questionImgEl.src = '';
+    }
+  }
+ 
   const questionTextEl = document.getElementById('boardQuestionText');
   if (questionTextEl) {
-    // Анімуємо тільки тоді, коли текст реально змінився
     if (questionTextEl.innerText !== foundText) {
       questionTextEl.classList.remove('question-animate');
       questionTextEl.innerText = foundText;
-      void questionTextEl.offsetWidth; // Примусовий reflow для перезапуску анімації
+      void questionTextEl.offsetWidth; 
       questionTextEl.classList.add('question-animate');
     }
   }
-}
+ }
 
 let globalTickCtx = null;
 let continuousOscillator = null;
