@@ -130,14 +130,15 @@ async function loadQuestionText(currentRoundNum, roomCode) {
     }
  
     if (foundImage && foundImage.trim() !== '') {
-      // Перезапускаємо анімацію для картинки так само, як для тексту
+      questionImgEl.style.display = 'block';
+      
+      // Перезапускаємо анімацію ТІЛЬКИ якщо посилання на картинку змінилося
       if (questionImgEl.src !== foundImage) {
         questionImgEl.src = foundImage;
+        questionImgEl.classList.remove('question-animate');
+        void questionImgEl.offsetWidth; // Примусовий рефлов для перезапуску анімації
+        questionImgEl.classList.add('question-animate');
       }
-      questionImgEl.style.display = 'block';
-      questionImgEl.classList.remove('question-animate');
-      void questionImgEl.offsetWidth; // Примусовий рефлов для перезапуску анімації
-      questionImgEl.classList.add('question-animate');
     } else {
       questionImgEl.style.display = 'none';
       questionImgEl.src = '';
