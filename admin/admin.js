@@ -750,12 +750,13 @@ window.handleCsvImport = function (event) {
       }
  
       if (parts.length >= 2) {
-        const questionText = parts[0] || '';
-        const correctAns = parts[1] || '';
-        const wrongAns = parts[2] || '';
+        const questionText = parts[0] ? parts[0].replace(/^"+|"+$/g, '"') : '';
+        const correctAns = parts[1] ? parts[1].replace(/^"+|"+$/g, '"') : '';
+        const wrongAns = parts[2] ? parts[2].replace(/^"+|"+$/g, '"') : '';
         const imageUrl = parts[3] ? parts[3].replace(/^"+|"+$/g, '"') : '';
+        
         if (typeof window.addQuestionRow === 'function') {
-          window.addQuestionRow(questionText, correctAns, wrongAns);
+          window.addQuestionRow(questionText, correctAns, wrongAns, imageUrl);
         }
       }
     });
