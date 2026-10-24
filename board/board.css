@@ -127,6 +127,7 @@ h1 {
 }
 
 .question-animate {
+  opacity: 0;
   animation: fadeInOnly 0.5s ease-in-out forwards;
 }
 

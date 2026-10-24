@@ -336,6 +336,13 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
        }
      });
 
+     // Розраховуємо затримку: кожен наступний варіант з'являється на 3 секунди пізніше за попередній (0s, 3s, 6s, 9s...)
+     const itemDelay = index * 5; 
+
+     // Додаємо клас анімації для поступової появи міток і голосів, якщо увімкнено світчер
+     const infoAnimClass = state.showVoters ? 'question-animate' : '';
+     const infoDelayStyle = state.showVoters ? `animation-delay: ${itemDelay}s; opacity: 0;` : '';
+
       // Додаємо клас анімації ТІЛЬКИ коли варіанти щойно з'явилися
       const animClass = isNewlyShown ? 'answer-item-animate' : '';
       const delay = index * 0.15;
@@ -353,13 +360,13 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
 
       if (state.showVoters) {
         if (isCorrect) {
-          listHtml += `<div><span class="correct-tag question-animate" style="margin: 0;">✅ Правильна відповідь</span></div>`;
+          listHtml += `<div><span class="correct-tag ${infoAnimClass}" style="margin: 0; ${infoDelayStyle}">✅ Правильна відповідь</span></div>`;
         } else if (isWrong) {
-          listHtml += `<div><span class="question-animate" style="display: inline-block; background: #c62828; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">😡 Відповідь-пастка</span></div>`;
+          listHtml += `<div><span class="${infoAnimClass}" style="display: inline-block; background: #c62828; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0; ${infoDelayStyle}">😡 Відповідь-пастка</span></div>`;
         } else {
           const authorPoints = voters.length;
           listHtml += `
-            <div class="question-animate" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <div class="${infoAnimClass}" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; ${infoDelayStyle}">
               <span class="author-tag" style="margin: 0;">😎 Автор: ${
                 item.userName
               }</span>
@@ -381,7 +388,7 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
       listHtml += `</div>`;
 
       if (state.showVoters && voters.length > 0) {
-        listHtml += `<div class="question-animate" style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end;">`;
+        listHtml += `<div class="${infoAnimClass}" style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end; ${infoDelayStyle}">`;
         voters.forEach((v) => {
           let pointsText = '';
           if (isCorrect) {
