@@ -92,7 +92,14 @@ async function renderBoard(state, roomCode) {
     loadLeaderboardData(roomCode);
     return;
   } else if (gameView === 'QR') {
-    if (viewQr) viewQr.style.display = 'block';
+    if (viewQr) {
+      viewQr.style.display = 'block';
+      const qrImg = viewQr.querySelector('img');
+      if (qrImg && !qrImg.src.includes('qr.png')) {
+        const basePath = window.location.pathname.includes('/bluffing-trivia/') ? '/bluffing-trivia' : '';
+        qrImg.src = basePath + '/qr.png';
+      }
+    }
     return;
   } else {
     if (viewBoard) viewBoard.style.display = 'block';
