@@ -308,8 +308,10 @@ function renderAdminUI(state) {
   if (btnSubmit) btnSubmit.className = state.phase === 'SUBMIT' ? 'active' : '';
   if (btnVote) btnVote.className = state.phase === 'VOTE' ? 'active' : '';
 
+  const btnQr = document.getElementById('btnViewQr');
   const btnBoard = document.getElementById('btnViewBoard');
   const btnLb = document.getElementById('btnViewLb');
+  if (btnQr) btnQr.className = state.gameView === 'QR' ? 'active' : '';
   if (btnBoard) btnBoard.className = state.gameView === 'BOARD' ? 'active' : '';
   if (btnLb) btnLb.className = state.gameView === 'LEADERBOARD' ? 'active' : '';
 
@@ -326,7 +328,9 @@ function renderAdminUI(state) {
 
   const timerInput = document.getElementById('timerInput');
   if (timerInput && document.activeElement !== timerInput) {
-    timerInput.value = state.timerSeconds || 30;
+    if (state.timerSeconds && state.phase !== 'VOTE') {
+      timerInput.value = state.timerSeconds;
+    }
   }
 
   const btnStartTimer = document.getElementById('btnStartTimer');
@@ -516,6 +520,10 @@ async function loadLiveStatsAndScores(state, roomCode) {
 window.changeQuestion = async function (roundNum) {
   if (!sessionInfo) return;
   showLoader('Зміна раунду...');
+
+  const timerInput = document.getElementById('timerInput');
+  const defaultSecs = timerInput ? parseInt(timerInput.value) || 30 : 30;
+
   await updateDoc(sessionInfo.docRef, {
     currentRound: Number(roundNum),
     phase: 'idle',
@@ -525,6 +533,7 @@ window.changeQuestion = async function (roundNum) {
     showBoardToPlayers: false,
     timerState: 'idle',
     timerStartTime: 0,
+    timerSeconds: defaultSecs,
     shuffledAnswers: [],
   });
   hideLoader();
@@ -550,7 +559,7 @@ window.setPhase = async function (phase) {
   if (!sessionInfo) return;
   showLoader('Зміна фази...');
   const timerInput = document.getElementById('timerInput');
-  const secs = timerInput ? parseInt(timerInput.value) || 30 : 30;
+  const baseSecs = timerInput ? parseInt(timerInput.value) || 30 : 30;
   
   const updateData = { phase };
 
@@ -561,14 +570,16 @@ window.setPhase = async function (phase) {
     updateData.showVoters = false;
     updateData.timerState = 'running';
     updateData.timerStartTime = new Date().getTime();
-    updateData.timerSeconds = secs;
+    updateData.timerSeconds = baseSecs;
   } 
   else if (phase === 'VOTE') {
     // Фаза "Голосування": запускаємо таймер голосування
+    const halfSecs = Math.max(1, Math.floor(baseSecs / 2));
+
     updateData.showBoardToPlayers = true;
     updateData.timerState = 'running';
     updateData.timerStartTime = new Date().getTime();
-    updateData.timerSeconds = secs;
+    updateData.timerSeconds = halfSecs;
   }
 
   await updateDoc(sessionInfo.docRef, updateData);

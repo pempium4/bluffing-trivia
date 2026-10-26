@@ -43,18 +43,26 @@
 
         <!-- Екран таблиці лідерів -->
         <div id="viewLbMode" style="display: none">
-          <div class="badge">🏆 Загальний рейтинг гравців</div>
+          <div class="badge">🏆 Загальний рейтинг гравців 🏆</div>
           <div class="lb-card">
             <table class="lb-table" id="leaderboardTable"></table>
           </div>
         </div>
+
+        <!-- Екран QR-коду -->
+       <div id="viewQrMode" style="display: none">
+        <div class="badge">Скануй QR-код та доєднуйся до гри</div>
+        <div class="lb-card" style="text-align: center;">
+          <img src="/qr.png" alt="QR Code" style="width: 100%" />
+        </div>
+      </div>
       </div>
     </div>
 
     <script type="module" src="board.js"></script>
     <script>
-      if (window.location.pathname.endsWith('board.html')) {
-      window.history.replaceState({}, '', window.location.href.replace('board.html', ''));
+      if (window.location.pathname.endsWith('index.html')) {
+      window.history.replaceState({}, '', window.location.href.replace('index.html', ''));
       }
     </script>
   </body>

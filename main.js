@@ -206,7 +206,7 @@ window.verifySessionPassword = async function () {
       if (sessionData.password === inputPassword) {
         localStorage.setItem('currentSessionCode', selectedSessionCode);
         localStorage.setItem('isAdmin', 'true');
-        window.location.href = `./admin/admin.html?room=${selectedSessionCode}`;
+        window.location.href = `./admin/index.html?room=${selectedSessionCode}`;
         return;
       }
     }
@@ -247,7 +247,7 @@ window.verifyAndJoinGame = async function () {
       codeInput.focus();
     } else {
       localStorage.setItem('currentSessionCode', code);
-      window.location.href = `./player/player.html?room=${code}`;
+      window.location.href = `./player/index.html?room=${code}`;
     }
   } catch (error) {
     console.error('Помилка перевірки коду:', error);

@@ -78,17 +78,23 @@ async function initBoard() {
 }
 
 async function renderBoard(state, roomCode) {
+  const viewQr = document.getElementById('viewQrMode');
   const viewBoard = document.getElementById('viewBoardMode');
   const viewLb = document.getElementById('viewLbMode');
   const gameView = state.gameView || 'BOARD';
 
+  if (viewBoard) viewBoard.style.display = 'none';
+  if (viewLb) viewLb.style.display = 'none';
+  if (viewQr) viewQr.style.display = 'none';
+
   if (gameView === 'LEADERBOARD') {
-    if (viewBoard) viewBoard.style.display = 'none';
     if (viewLb) viewLb.style.display = 'block';
     loadLeaderboardData(roomCode);
     return;
+  } else if (gameView === 'QR') {
+    if (viewQr) viewQr.style.display = 'block';
+    return;
   } else {
-    if (viewLb) viewLb.style.display = 'none';
     if (viewBoard) viewBoard.style.display = 'block';
   }
 
