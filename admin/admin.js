@@ -424,17 +424,30 @@ async function loadLiveStatsAndScores(state, roomCode) {
         <div class="answer-stat-box" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; background: #252525; padding: 12px; border-radius: 8px;">
           <div style="display: flex; flex-direction: column; flex-grow: 1; margin-right: 15px;">
             <div class="ans-text" style="font-size: 18px; font-weight: bold; margin-bottom: 6px; color: #fff;"><b>${idx + 1}.</b> ${item.answer}</div>
-            ${
-              item.isSpecial
-                ? `<div><span style="display: inline-block; background: ${ item.userName.includes('Правильна') ? '#2e7d32' : '#c62828' }; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">${item.userName}</span></div>`
-                : `<div><span class="author-badge" style="margin: 0;">😎 Автор: ${item.userName}</span></div>`
-            }
+            ${(() => {
+              if (item.isSpecial) {
+                return `<div><span style="display: inline-block; background: ${ item.userName.includes('Правильна') ? '#2e7d32' : '#c62828' }; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">${item.userName}</span></div>`;
+              } else {
+                let authorIcon = '😎';
+                let cleanAuthorName = item.userName;
+                const match = item.userName.match(/^([\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}])\s*(.*)$/u);
+                if (match && match[1] !== '👤') {
+                  authorIcon = match[1];
+                  cleanAuthorName = match[2];
+                }
+                return `<div><span class="author-badge" style="margin: 0;">${authorIcon} Автор: ${cleanAuthorName}</span></div>`;
+              }
+            })()}
           </div>
           <div>
             ${
               voters.length > 0
                 ? voters
-                    .map((v) => `<span class="voters-tag" style="background: #ffffff; color: #3700b3; padding: 5px 12px; border-radius: 6px; font-size: 15px; white-space: nowrap; margin: 2px; display: inline-block; font-weight: 500;">👤 ${v}</span>`)
+                    .map((v) => {
+                      const hasEmoji = /^\p{Extended_Pictographic}/u.test(v) || /^[\u{1F300}-\u{1F9FF}]/u.test(v);
+                      const displayName = hasEmoji ? v : `👤 ${v}`;
+                      return `<span class="voters-tag" style="background: #ffffff; color: #3700b3; padding: 5px 12px; border-radius: 6px; font-size: 15px; white-space: nowrap; margin: 2px; display: inline-block; font-weight: 500;">${displayName}</span>`;
+                    })
                     .join('')
                 : '<div class="no-votes" style="color: #888; white-space: nowrap;">Ніхто поки не обрав</div>'
             }

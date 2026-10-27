@@ -474,9 +474,20 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
             listHtml += `<div><span style="display: inline-block; background: #c62828; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">😡 Відповідь-пастка</span></div>`;
           } else {
             const authorPoints = voters.length;
+            
+            // Визначаємо емодзі та чисте ім'я автора
+            let authorIcon = '😎';
+            let cleanAuthorName = item.userName;
+            
+            const match = item.userName.match(/^([\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}])\s*(.*)$/u);
+            if (match && match[1] !== '👤') {
+              authorIcon = match[1];
+              cleanAuthorName = match[2];
+            }
+
             listHtml += `
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <span class="author-tag" style="margin: 0;">😎 Автор: ${item.userName}</span>
+                <span class="author-tag" style="margin: 0;">${authorIcon} Автор: ${cleanAuthorName}</span>
                 ${authorPoints > 0 ? `<b style="color: #03dac6; font-size: 14px;">+${authorPoints} ${authorPoints === 1 ? 'бал' : authorPoints < 5 ? 'бали' : 'балів'}</b>` : ''}
               </div>
             `;
@@ -487,6 +498,7 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
 
         if (showThisLabel && voters.length > 0) {
           listHtml += `<div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end;">`;
+          // Для голосів у списку та модалці:
           voters.forEach((v) => {
             let pointsText = '';
             if (isCorrect) {
@@ -494,7 +506,13 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
             } else if (isWrong) {
               pointsText = ' <b style="color: #ff5252;">-1</b>';
             }
-            listHtml += `<span style="background: #ffffff; color: #3700b3; padding: 5px 12px; border-radius: 6px; font-size: 15px; white-space: nowrap; margin: 0; font-weight: 500;">👤 ${v}${pointsText}</span>`;
+
+            // Перевіряємо, чи є емодзі на початку рядка (простий і надійний спосіб)
+            // Якщо гравець не обрав емодзі, додаємо дефолтне 👤
+            const hasEmoji = /^\p{Extended_Pictographic}/u.test(v) || /^[\u{1F300}-\u{1F9FF}]/u.test(v);
+            const displayName = hasEmoji ? v : `👤 ${v}`;
+
+            listHtml += `<span style="background: #ffffff; color: #3700b3; padding: 5px 12px; border-radius: 6px; font-size: 15px; white-space: nowrap; margin: 0; font-weight: 500;">${displayName}${pointsText}</span>`;
           });
           listHtml += `</div>`;
         }
@@ -547,9 +565,20 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
       } else if (isWrong) {
         leftBadgeHtml = `<span style="display: inline-block; background: #c62828; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 16px; font-weight: 500; margin: 0;">😡 Відповідь-пастка</span>`;
       } else {
+        const authorPoints = cardVoters.length;
+        
+        let authorIcon = '😎';
+        let cleanAuthorName = currentCardItem.userName;
+
+        const match = currentCardItem.userName.match(/^([\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}])\s*(.*)$/u);
+        if (match && match[1] !== '👤') {
+          authorIcon = match[1];
+          cleanAuthorName = match[2];
+        }
+
         leftBadgeHtml = `
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <span class="author-tag" style="font-size: 16px; padding: 6px 14px; margin: 0;">😎 Автор: ${currentCardItem.userName}</span>
+            <span class="author-tag" style="font-size: 16px; padding: 6px 14px; margin: 0;">${authorIcon} Автор: ${cleanAuthorName}</span>
             ${authorPoints > 0 ? `<b style="color: #03dac6; font-size: 16px;">+${authorPoints} ${authorPoints === 1 ? 'бал' : authorPoints < 5 ? 'бали' : 'балів'}</b>` : ''}
           </div>
         `;
@@ -559,13 +588,13 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
       if (cardVoters.length > 0) {
         rightVotersHtml = `<div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">`;
         cardVoters.forEach((v) => {
-          let pts = '';
-          if (isCorrect) {
-            pts = ' <b style="color: #2e7d32;">+2</b>';
-          } else if (isWrong) {
-            pts = ' <b style="color: #ff5252;">-1</b>';
-          }
-          rightVotersHtml += `<span style="background: #ffffff; color: #3700b3; padding: 8px 14px; border-radius: 8px; font-size: 16px; font-weight: bold; white-space: nowrap; margin: 0;">👤 ${v}${pts}</span>`;
+          let pts = isCorrect ? ' <b style="color: #2e7d32;">+2</b>' : (isWrong ? ' <b style="color: #ff5252;">-1</b>' : '');
+          
+          // Перевіряємо наявність емодзі у гравця
+          const hasEmoji = /^\p{Extended_Pictographic}/u.test(v) || /^[\u{1F300}-\u{1F9FF}]/u.test(v);
+          const displayName = hasEmoji ? v : `👤 ${v}`;
+      
+          rightVotersHtml += `<span style="background: #ffffff; color: #3700b3; padding: 8px 14px; border-radius: 8px; font-size: 16px; font-weight: bold; white-space: nowrap; margin: 0;">${displayName}${pts}</span>`;
         });
         rightVotersHtml += `</div>`;
       } else {

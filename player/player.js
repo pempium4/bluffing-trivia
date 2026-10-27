@@ -84,13 +84,26 @@ function checkUserSession(roomCode) {
 }
 
 window.joinGame = function () {
+  const emojiSelect = document.getElementById('userEmojiSelect');
+  const emoji = emojiSelect ? emojiSelect.value : '👤';
+
   const input = document.getElementById('loginUsername');
   const name = input ? input.value.trim() : '';
   if (!name) {
     alert('Будь ласка, введіть свій нікнейм!');
     return;
   }
-  localStorage.setItem('bluff_username', name);
+
+  // Об'єднуємо емодзі та нікнейм в одне ім'я (наприклад: "🦊 Мартишка")
+  const fullUserName = `${emoji} ${name}`;
+
+  // Зберігаємо у твій ключ, який використовується в проєкті
+  localStorage.setItem('bluff_username', fullUserName);
+  
+  // Також збережемо окремо емодзі та чистий нікнейм, якщо знадобляться у майбутньому
+  localStorage.setItem('bluff_user_emoji', emoji);
+  localStorage.setItem('bluff_user_name_only', name);
+
   if (sessionInfo) {
     checkUserSession(sessionInfo.roomCode);
   }

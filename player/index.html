@@ -21,7 +21,29 @@
       <p style="color: #666; margin-bottom: 20px">
         Введіть свій нікнейм, щоб приєднатися до гри:
       </p>
-      <input type="text" id="loginUsername" placeholder="Ваш нікнейм" />
+      <div style="display: flex; gap: 8px; margin-bottom: 15px; align-items: center;">
+        <select id="userEmojiSelect" style="background: #ffffff; color: #333; border: 1px solid #ccc; padding: 0 10px; height: 46px; border-radius: 8px; font-size: 20px; cursor: pointer; outline: none; box-sizing: border-box;">
+          <option value="👤">👤</option>
+          <option value="🐺">🐺</option>
+          <option value="🦊">🦊</option>
+          <option value="🐰">🐰</option>
+          <option value="🦝">🦝</option>
+          <option value="🐼">🐼</option>
+          <option value="🐵">🐵</option>
+          <option value="🐸">🐸</option>
+          <option value="🐷">🐷</option>
+          <option value="🐲">🐲</option>
+          <option value="🦄">🦄</option>
+          <option value="🤡">🤡</option>
+          <option value="👽">👽</option>
+          <option value="😈">😈</option>
+          <option value="🤖">🤖</option>
+          <option value="👻">👻</option>
+          <option value="💩">💩</option>
+          <option value="🗿">🗿</option>
+        </select>
+        <input type="text" id="loginUsername" placeholder="Ваш нікнейм" style="flex: 1; height: 46px; padding: 0 14px; border-radius: 8px; border: 1px solid #ccc; background: #ffffff; color: #333; font-size: 16px; outline: none; box-sizing: border-box;" />
+      </div>
       <button onclick="joinGame()" style="background: #3700b3">
         🎮 Приєднатися
       </button>
@@ -80,7 +102,7 @@
       >
         <div class="spinner" style="margin: 20px auto"></div>
         <div style="font-size: 16px; color: #666; font-weight: 500">
-          Очікуйте наступного запитання...
+          Очікуйте початку збору відповідей...
         </div>
       </div>
 
