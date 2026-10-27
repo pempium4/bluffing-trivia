@@ -274,13 +274,15 @@ function stopContinuousSound() {
   }
 }
 
+let revealStepIndex = 0;
+let revealTimeout = null;
 let lastShowQuestionState = false;
+let lastShowVotersState = false;
 
 async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
   const votesQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
   const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
   const questionsQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
-
   const [votesSnap, answersSnap, qSnapshot] = await Promise.all([
     getDocs(votesQuery),
     getDocs(answersQuery),
@@ -288,15 +290,12 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
   ]);
 
   let roundAnswers = state.shuffledAnswers || [];
-
   if (roundAnswers.length === 0) {
     let currentQ = { correctAnswer: '', wrongAnswer: '' };
-
     qSnapshot.forEach((docSnap) => {
       const q = docSnap.data();
       if (Number(q.roundNum) === Number(currentRoundNum)) currentQ = q;
     });
-
     answersSnap.forEach((docSnap) => {
       const ans = docSnap.data();
       if (Number(ans.roundNum) === Number(currentRoundNum)) {
@@ -307,7 +306,6 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
         });
       }
     });
-
     if (currentQ.correctAnswer) {
       roundAnswers.push({
         id: 'correct' + currentRoundNum,
@@ -325,108 +323,271 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
       });
     }
   }
+  
+  // Створюємо окремий масив для черговості модалок: 
+  // звичайні варіанти (за які голосували) йдуть у своєму порядку, а пастка та правильна відповідь — завжди в кінці.
+  let activeCardItems = [];
+  let correctCardItem = null;
 
-  // Визначаємо, чи світчер щойно увімкнувся (перехід з false у true)
+  roundAnswers.forEach((item) => {
+    let hasVotes = false;
+    votesSnap.forEach((vDoc) => {
+      const v = vDoc.data();
+      if (Number(v.roundNum) === Number(currentRoundNum) && v.votedAnswerId === item.id) {
+        hasVotes = true;
+      }
+    });
+    const isCorrect = item.id && item.id.startsWith('correct');
+
+    if (isCorrect) {
+      // Зберігаємо правильну відповідь окремо на потім
+      correctCardItem = item;
+    } else if (hasVotes) {
+      // Додаємо звичайний варіант або пастку ТІЛЬКИ якщо за них хтось проголосував, 
+      // зберігаючи їхній природний порядок зверху вниз у списку
+      activeCardItems.push(item);
+    }
+  });
+
+  // Гарантовано ставимо правильну відповідь на сам кінець
+  if (correctCardItem) {
+    activeCardItems.push(correctCardItem);
+  }
+
   const isNewlyShown = state.showQuestion && !lastShowQuestionState;
   lastShowQuestionState = !!state.showQuestion;
 
-  let listHtml = '';
-  if (roundAnswers.length === 0) {
-    listHtml = `<div class="answer-item" style="border-left-color: #ffb74d; color: #aaa;">Очікуємо на варіанти від гравців...</div>`;
-  } else {
-    roundAnswers.forEach((item, index) => {
-      let voters = [];
-      const isCorrect = item.id === 'correct' + currentRoundNum || (item.id && item.id.startsWith('correct'));
-      const isWrong = item.id === 'wrong' + currentRoundNum || (item.id && item.id.startsWith('wrong'));
-
-      votesSnap.forEach((vDoc) => {
-       const v = vDoc.data();
-       if (Number(v.roundNum) === Number(currentRoundNum)) {
-         // Сувора перевірка виключно за унікальним ID варіанта
-         if (v.votedAnswerId && v.votedAnswerId === item.id) {
-           voters.push(v.userName);
-         }
-       }
-     });
-
-     // Розраховуємо затримку: кожен наступний варіант з'являється на 3 секунди пізніше за попередній (0s, 3s, 6s, 9s...)
-     const itemDelay = index * 5; 
-
-     // Додаємо клас анімації для поступової появи міток і голосів, якщо увімкнено світчер
-     const infoAnimClass = state.showVoters ? 'question-animate' : '';
-     const infoDelayStyle = state.showVoters ? `animation-delay: ${itemDelay}s; opacity: 0;` : '';
-
-      // Додаємо клас анімації ТІЛЬКИ коли варіанти щойно з'явилися
-      const animClass = isNewlyShown ? 'answer-item-animate' : '';
-      const delay = index * 0.15;
-      const styleAttr = isNewlyShown 
-        ? `display: flex; justify-content: space-between; align-items: flex-end; animation-delay: ${delay}s;` 
-        : `display: flex; justify-content: space-between; align-items: flex-end;`;
-
-      listHtml += `
-        <div class="answer-item ${animClass}" style="${styleAttr}">
-          <div style="display: flex; flex-direction: column; flex-grow: 1; margin-right: 15px;">
-            <div style="font-size: 20px; font-weight: bold; margin-bottom: 8px;"><b>${
-              index + 1
-            }.</b> ${item.answer}</div>
-      `;
-
-      if (state.showVoters) {
-        if (isCorrect) {
-          listHtml += `<div><span class="correct-tag ${infoAnimClass}" style="margin: 0; ${infoDelayStyle}">✅ Правильна відповідь</span></div>`;
-        } else if (isWrong) {
-          listHtml += `<div><span class="${infoAnimClass}" style="display: inline-block; background: #c62828; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0; ${infoDelayStyle}">😡 Відповідь-пастка</span></div>`;
-        } else {
-          const authorPoints = voters.length;
-          listHtml += `
-            <div class="${infoAnimClass}" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; ${infoDelayStyle}">
-              <span class="author-tag" style="margin: 0;">😎 Автор: ${
-                item.userName
-              }</span>
-              ${
-                authorPoints > 0
-                  ? `<b style="color: #03dac6; font-size: 14px;">+${authorPoints}&nbsp;${
-                      authorPoints === 1
-                        ? 'бал'
-                        : authorPoints < 5
-                        ? 'бали'
-                        : 'балів'
-                    }</b>`
-                  : ''
-              }
-            </div>
-          `;
-        }
-      }
-      listHtml += `</div>`;
-
-      if (state.showVoters && voters.length > 0) {
-        listHtml += `<div class="${infoAnimClass}" style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end; ${infoDelayStyle}">`;
-        voters.forEach((v) => {
-          let pointsText = '';
-          if (isCorrect) {
-            pointsText = ' <b style="color: #2e7d32;">+2</b>';
-          } else if (isWrong) {
-            pointsText = ' <b style="color: #ff5252;">-1</b>';
-          }
-          listHtml += `<span style="background: #ffffff; color: #3700b3; padding: 5px 12px; border-radius: 6px; font-size: 15px; white-space: nowrap; margin: 0; font-weight: 500;">👤 ${v}${pointsText}</span>`;
-        });
-        listHtml += `</div>`;
-      }
-      listHtml += `</div>`;
-    });
-  }
-
   const answersWrapper = document.getElementById('answersWrapper');
   const answersContainer = document.getElementById('answersList');
-  if (answersWrapper && answersContainer) {
-    if (state.showQuestion) {
-      answersWrapper.style.display = 'block';
-      answersContainer.innerHTML = listHtml;
-    } else {
-      answersWrapper.style.display = 'none';
-      answersContainer.innerHTML = '';
+  let modalContainer = document.getElementById('modalCardContainer');
+  if (!modalContainer) {
+    modalContainer = document.createElement('div');
+    modalContainer.id = 'modalCardContainer';
+    document.body.appendChild(modalContainer);
+  }
+
+  if (!answersWrapper || !answersContainer) return;
+
+  if (!state.showQuestion) {
+    answersWrapper.style.display = 'none';
+    answersContainer.innerHTML = '';
+    modalContainer.innerHTML = '';
+    if (revealTimeout) { clearTimeout(revealTimeout); revealTimeout = null; }
+    lastShowQuestionState = false;
+    lastShowVotersState = false;
+    return;
+  }
+
+  answersWrapper.style.display = 'block';
+
+  // Логіка запуску ланцюжка модалок при увімкненні світчера "Показати авторів та голоси"
+  const justTurnedOnVoters = state.showVoters && !lastShowVotersState;
+  
+  if (justTurnedOnVoters) {
+    revealStepIndex = 0;
+    if (revealTimeout) clearTimeout(revealTimeout);
+    startRevealSequence();
+  } else if (!state.showVoters) {
+    revealStepIndex = activeCardItems.length;
+    if (revealTimeout) { clearTimeout(revealTimeout); revealTimeout = null; }
+    modalContainer.innerHTML = '';
+  }
+  lastShowVotersState = !!state.showVoters;
+
+  function startRevealSequence() {
+    if (!state.showVoters || revealStepIndex >= activeCardItems.length) {
+      if (modalContainer) modalContainer.innerHTML = '';
+      renderListOnly();
+      return;
     }
+
+    // Рендеримо картку та оновлюємо список
+    renderBoardContent(true);
+
+    // Модалка тримається 5 секунд
+    revealTimeout = setTimeout(() => {
+      if (!state.showVoters) return;
+
+      const modalInner = modalContainer.querySelector('.question-animate');
+      const modalBackdrop = modalContainer.querySelector('div');
+
+      if (modalInner) modalInner.classList.add('question-animate-out');
+      if (modalBackdrop) modalBackdrop.classList.add('question-animate-out');
+
+      // Збільшуємо індекс і оновлюємо список одразу на початку плавного зникання модалки
+      revealStepIndex++;
+      renderListOnly();
+
+      // Через 0.5с (коли анімація завершиться) повністю очищаємо модалку та показуємо мітку в списку
+      setTimeout(() => {
+        if (!state.showVoters) return;
+
+        if (modalContainer) modalContainer.innerHTML = '';
+
+        // Пауза 4 секунди перед наступною модалкою
+        revealTimeout = setTimeout(() => {
+          if (!state.showVoters) return;
+          startRevealSequence();
+        }, 3500);
+      }, 500);
+
+    }, 4500); // 4.5с + 0.5с анімації = 5 секунд показу модалки
+  }
+
+  function renderListOnly() {
+    let listHtml = '';
+    if (roundAnswers.length === 0) {
+      listHtml = `<div class="answer-item" style="border-left-color: #ffb74d; color: #aaa;">Очікуємо на варіанти від гравців...</div>`;
+    } else {
+      roundAnswers.forEach((item, index) => {
+        let voters = [];
+        const isCorrect = item.id === 'correct' + currentRoundNum || (item.id && item.id.startsWith('correct'));
+        const isWrong = item.id === 'wrong' + currentRoundNum || (item.id && item.id.startsWith('wrong'));
+
+        votesSnap.forEach((vDoc) => {
+          const v = vDoc.data();
+          if (Number(v.roundNum) === Number(currentRoundNum) && v.votedAnswerId === item.id) {
+            voters.push(v.userName);
+          }
+        });
+
+        // Перевіряємо, чи цей елемент уже брав участь у модалках і чи дійшла до нього черга
+        const cardIndex = activeCardItems.findIndex(ci => ci.id === item.id);
+        const showThisLabel = state.showVoters && cardIndex !== -1 && cardIndex < revealStepIndex;
+
+        const animClass = isNewlyShown ? 'answer-item-animate' : '';
+        const delay = index * 0.15;
+        const styleAttr = isNewlyShown
+          ? `display: flex; justify-content: space-between; align-items: flex-end; animation-delay: ${delay}s;`
+          : `display: flex; justify-content: space-between; align-items: flex-end;`;
+
+        listHtml += `
+          <div class="answer-item ${animClass}" style="${styleAttr}">
+            <div style="display: flex; flex-direction: column; flex-grow: 1; margin-right: 15px;">
+              <div style="font-size: 20px; font-weight: bold; margin-bottom: 8px;"><b>${index + 1}.</b> ${item.answer}</div>
+        `;
+
+        if (showThisLabel) {
+          if (isCorrect) {
+            listHtml += `<div><span class="correct-tag" style="margin: 0;">✅ Правильна відповідь</span></div>`;
+          } else if (isWrong) {
+            listHtml += `<div><span style="display: inline-block; background: #c62828; color: #fff; padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; margin: 0;">😡 Відповідь-пастка</span></div>`;
+          } else {
+            const authorPoints = voters.length;
+            listHtml += `
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="author-tag" style="margin: 0;">😎 Автор: ${item.userName}</span>
+                ${authorPoints > 0 ? `<b style="color: #03dac6; font-size: 14px;">+${authorPoints} ${authorPoints === 1 ? 'бал' : authorPoints < 5 ? 'бали' : 'балів'}</b>` : ''}
+              </div>
+            `;
+          }
+        }
+
+        listHtml += `</div>`;
+
+        if (showThisLabel && voters.length > 0) {
+          listHtml += `<div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end;">`;
+          voters.forEach((v) => {
+            let pointsText = '';
+            if (isCorrect) {
+              pointsText = ' <b style="color: #2e7d32;">+2</b>';
+            } else if (isWrong) {
+              pointsText = ' <b style="color: #ff5252;">-1</b>';
+            }
+            listHtml += `<span style="background: #ffffff; color: #3700b3; padding: 5px 12px; border-radius: 6px; font-size: 15px; white-space: nowrap; margin: 0; font-weight: 500;">👤 ${v}${pointsText}</span>`;
+          });
+          listHtml += `</div>`;
+        }
+
+        listHtml += `</div>`;
+      });
+    }
+    answersContainer.innerHTML = listHtml;
+  }
+
+  function renderBoardContent(showModal = false) {
+    renderListOnly();
+
+    if (showModal && state.showVoters && revealStepIndex < activeCardItems.length) {
+      const currentCardItem = activeCardItems[revealStepIndex];
+      let cardVoters = [];
+      const isCorrect = currentCardItem.id === 'correct' + currentRoundNum || (currentCardItem.id && currentCardItem.id.startsWith('correct'));
+      const isWrong = currentCardItem.id === 'wrong' + currentRoundNum || (currentCardItem.id && currentCardItem.id.startsWith('wrong'));
+
+      votesSnap.forEach((vDoc) => {
+        const v = vDoc.data();
+        if (Number(v.roundNum) === Number(currentRoundNum) && v.votedAnswerId === currentCardItem.id) {
+          cardVoters.push(v.userName);
+        }
+      });
+
+      let badgeHtml = '';
+      if (isCorrect) {
+        badgeHtml = `<span class="correct-tag" style="font-size: 18px; padding: 8px 16px;">✅ Правильна відповідь</span>`;
+      } else if (isWrong) {
+        badgeHtml = `<span style="background: #c62828; color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 18px; font-weight: 500;">😡 Відповідь-пастка</span>`;
+      } else {
+        badgeHtml = `<span class="author-tag" style="font-size: 18px; padding: 8px 16px;">😎 Автор: ${currentCardItem.userName}</span>`;
+      }
+
+      let votersHtml = '';
+      if (cardVoters.length > 0) {
+        votersHtml = `<div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 20px;">`;
+        cardVoters.forEach((v) => {
+          let pts = isCorrect ? ' (+2)' : (isWrong ? ' (-1)' : '');
+          votersHtml += `<span style="background: #ffffff; color: #3700b3; padding: 10px 18px; border-radius: 8px; font-size: 20px; font-weight: bold;">👤 ${v}${pts}</span>`;
+        });
+        votersHtml += `</div>`;
+      }
+
+      let authorPoints = cardVoters.length;
+      let leftBadgeHtml = '';
+      if (isCorrect) {
+        leftBadgeHtml = `<span class="correct-tag" style="font-size: 16px; padding: 6px 14px; margin: 0;">✅ Правильна відповідь</span>`;
+      } else if (isWrong) {
+        leftBadgeHtml = `<span style="display: inline-block; background: #c62828; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 16px; font-weight: 500; margin: 0;">😡 Відповідь-пастка</span>`;
+      } else {
+        leftBadgeHtml = `
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span class="author-tag" style="font-size: 16px; padding: 6px 14px; margin: 0;">😎 Автор: ${currentCardItem.userName}</span>
+            ${authorPoints > 0 ? `<b style="color: #03dac6; font-size: 16px;">+${authorPoints} ${authorPoints === 1 ? 'бал' : authorPoints < 5 ? 'бали' : 'балів'}</b>` : ''}
+          </div>
+        `;
+      }
+
+      let rightVotersHtml = '';
+      if (cardVoters.length > 0) {
+        rightVotersHtml = `<div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">`;
+        cardVoters.forEach((v) => {
+          let pts = '';
+          if (isCorrect) {
+            pts = ' <b style="color: #2e7d32;">+2</b>';
+          } else if (isWrong) {
+            pts = ' <b style="color: #ff5252;">-1</b>';
+          }
+          rightVotersHtml += `<span style="background: #ffffff; color: #3700b3; padding: 8px 14px; border-radius: 8px; font-size: 16px; font-weight: bold; white-space: nowrap; margin: 0;">👤 ${v}${pts}</span>`;
+        });
+        rightVotersHtml += `</div>`;
+      } else {
+        rightVotersHtml = `<span style="color: #888; font-size: 15px;">Ніхто не обрав</span>`;
+      }
+
+      modalContainer.innerHTML = `
+        <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.75); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+          <div class="question-animate" style="background: #1e1e1e; border: 3px solid #03dac6; padding: 40px; border-radius: 16px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.8); max-width: 800px; width: 90%;">
+            <div style="font-size: 32px; font-weight: bold; margin-bottom: 25px; color: #fff;">«${currentCardItem.answer}»</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; text-align: left;">
+              <div style="flex: 1;">${leftBadgeHtml}</div>
+              <div style="flex: 1; display: flex; justify-content: flex-end;">${rightVotersHtml}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  if (!justTurnedOnVoters) {
+    renderListOnly();
   }
 }
 
