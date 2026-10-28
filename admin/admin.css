@@ -340,3 +340,39 @@ input:checked + .slider:before {
   padding-bottom: 12px;
   margin-bottom: 12px;
 }
+
+/* Десктопні кнопки табло (видимі за замовчуванням) */
+.desktop-tablo-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Мобільний селектор табло (прихований на десктопі) */
+.mobile-tablo-select {
+  display: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #2d2d2d;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  outline: none;
+  width: auto !important;
+  flex-grow: 0 !important;
+}
+
+@media (max-width: 600px) {
+  .desktop-tablo-buttons {
+    display: none !important;
+  }
+  .mobile-tablo-select {
+    display: block !important;
+  }
+  .switch-container:has(#mobileTabloSelect) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+}

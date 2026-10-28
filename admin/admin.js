@@ -315,6 +315,11 @@ function renderAdminUI(state) {
   if (btnBoard) btnBoard.className = state.gameView === 'BOARD' ? 'active' : '';
   if (btnLb) btnLb.className = state.gameView === 'LEADERBOARD' ? 'active' : '';
 
+  const mobileSelect = document.getElementById('mobileTabloSelect');
+  if (mobileSelect && state.gameView) {
+    mobileSelect.value = state.gameView;
+  }
+
   const showQToggle = document.getElementById('showQuestionToggle');
   if (showQToggle) showQToggle.checked = state.showQuestion || false;
   

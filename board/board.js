@@ -597,14 +597,12 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
           rightVotersHtml += `<span style="background: #ffffff; color: #3700b3; padding: 8px 14px; border-radius: 8px; font-size: 16px; font-weight: bold; white-space: nowrap; margin: 0;">${displayName}${pts}</span>`;
         });
         rightVotersHtml += `</div>`;
-      } else {
-        rightVotersHtml = `<span style="color: #888; font-size: 15px;">Ніхто не обрав</span>`;
       }
 
       modalContainer.innerHTML = `
         <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.75); display: flex; align-items: center; justify-content: center; z-index: 9999;">
           <div class="question-animate" style="background: #1e1e1e; border: 3px solid #03dac6; padding: 40px; border-radius: 16px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.8); max-width: 800px; width: 90%;">
-            <div style="font-size: 32px; font-weight: bold; margin-bottom: 25px; color: #fff;">«${currentCardItem.answer}»</div>
+            <div style="font-size: 32px; font-weight: bold; margin-bottom: 25px; color: #fff;">"${currentCardItem.answer}"</div>
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; text-align: left;">
               <div style="flex: 1;">${leftBadgeHtml}</div>
               <div style="flex: 1; display: flex; justify-content: flex-end;">${rightVotersHtml}</div>

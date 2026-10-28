@@ -142,15 +142,24 @@
             </label>
           </div>
 
-          <!-- 6. Табло (без лінії) -->
-          <div class="switch-container">
-            <span class="switch-label">Табло:</span>
-            <div>
-              <button id="btnViewQr" onclick="setView('QR')">📱 QR-код</button>
-              <button id="btnViewBoard" onclick="setView('BOARD')">📋 Запитання</button>
-              <button id="btnViewLb" onclick="setView('LEADERBOARD')">🏆 Рейтинг</button>
-            </div>
+          <!-- 6. Табло -->
+        <div class="switch-container">
+          <span class="switch-label">Табло:</span>
+          
+          <!-- Для великих екранів: звичні кнопки в рядок -->
+          <div class="desktop-tablo-buttons">
+            <button id="btnViewQr" onclick="setView('QR')">📱 QR-код</button>
+            <button id="btnViewBoard" onclick="setView('BOARD')">📋 Запитання</button>
+            <button id="btnViewLb" onclick="setView('LEADERBOARD')">🏆 Рейтинг</button>
           </div>
+
+          <!-- Для мобільних екранів (<600px): компактний dropdown -->
+          <select class="mobile-tablo-select" id="mobileTabloSelect" onchange="setView(this.value)">
+            <option value="BOARD">📋 Запитання</option>
+            <option value="LEADERBOARD">🏆 Рейтинг</option>
+            <option value="QR">📱 QR-код</option>
+          </select>
+        </div>
         </div>
 
         <div class="card">
