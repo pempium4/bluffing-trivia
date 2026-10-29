@@ -102,7 +102,7 @@ function checkAutomationTimeouts(state) {
           if (typeof window.toggleShowQuestion === 'function') {
             await window.toggleShowQuestion(true);
           }
-        }, 3000);
+        }, 4500);
       }
     } else if (state.timerState === 'running') {
       hasAutoSwitchedQuestion = false;
@@ -122,7 +122,7 @@ function checkAutomationTimeouts(state) {
           if (typeof window.toggleVoters === 'function') {
             await window.toggleVoters(true);
           }
-        }, 3000);
+        }, 6000);
       }
     } else if (state.timerState === 'running') {
       hasAutoSwitchedVote = false;
