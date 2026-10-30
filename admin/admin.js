@@ -580,29 +580,27 @@ window.setPhase = async function (phase) {
   const baseSecs = timerInput ? parseInt(timerInput.value) || 30 : 30;
   
   const updateData = { phase };
-
+  
   if (phase === 'SUBMIT') {
     // Фаза "Збір": відкриваємо доступ гравцям і запускаємо таймер
     updateData.showBoardToPlayers = true;
-    updateData.showQuestion = false; // Варіанти ще приховані!
+    updateData.showQuestion = false; 
     updateData.showVoters = false;
     updateData.timerState = 'running';
     updateData.timerStartTime = new Date().getTime();
     updateData.timerSeconds = baseSecs;
-  } 
+  }
   else if (phase === 'VOTE') {
-    // Фаза "Голосування": запускаємо таймер голосування
-    const halfSecs = Math.max(1, Math.floor(baseSecs / 2));
-
+    // Фаза "Голосування": запускаємо таймер із повним часом (без поділу навпіл)
     updateData.showBoardToPlayers = true;
     updateData.timerState = 'running';
     updateData.timerStartTime = new Date().getTime();
-    updateData.timerSeconds = halfSecs;
+    updateData.timerSeconds = baseSecs;
   }
-
+  
   await updateDoc(sessionInfo.docRef, updateData);
   hideLoader();
-};
+ };
 
 window.setView = async function (mode) {
   if (!sessionInfo) return;
@@ -802,18 +800,15 @@ function handleAdminTimer(state) {
     clearInterval(adminTimerInterval);
     adminTimerInterval = null;
   }
-
   if (state.timerState === 'running' && state.timerStartTime && state.timerSeconds) {
     const totalMs = Number(state.timerSeconds) * 1000;
     const startTime = Number(state.timerStartTime);
-
     adminTimerInterval = setInterval(async () => {
       const now = new Date().getTime();
       const elapsed = now - startTime;
       if (elapsed >= totalMs) {
         clearInterval(adminTimerInterval);
         adminTimerInterval = null;
-        // Коли час вийшов — оновлюємо статус в сесії на expired
         if (sessionInfo && sessionInfo.docRef) {
           await updateDoc(sessionInfo.docRef, { timerState: 'expired' });
         }
