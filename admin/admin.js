@@ -817,6 +817,7 @@ function handleAdminTimer(state) {
   }
 }
 
+
 // Елементи нового модального вікна видалення
 const deleteSessionModal = document.getElementById('deleteSessionModal');
 const openDeleteBtn = document.getElementById('openDeleteSessionModalBtn');
