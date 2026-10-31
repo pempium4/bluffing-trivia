@@ -247,26 +247,26 @@ function renderPhases(status, username) {
       if (playerTimerInterval) clearInterval(playerTimerInterval);
       
       const totalSec = parseInt(status.timerSeconds) || 30;
+     
+      // Вираховуємо час із захистом від різниці годинників (clock skew)
+      let initialElapsed = (new Date().getTime() - parseInt(status.timerStartTime)) / 1000;
       
-      // Вираховуємо скільки часу вже минуло з урахуванням серверного/адмінського старту
-      const initialElapsed = (new Date().getTime() - parseInt(status.timerStartTime)) / 1000;
+      // Якщо годинник гравця відстає (від'ємне значення), обнуляємо, щоб смужка починалась зі 100%
+      if (initialElapsed < 0) initialElapsed = 0;
+      // Якщо час уже вийшов
+      if (initialElapsed > totalSec) initialElapsed = totalSec;
+
       let remainingSec = totalSec - initialElapsed;
       
-      // Якщо через різницю годинників час уже вийшов або пішов у мінус
-      if (remainingSec <= 0) {
-        remainingSec = 0;
-        playerIsExpired = true;
-      }
- 
       playerTimerInterval = setInterval(() => {
         if (playerIsExpired) return;
         
-        // Зменшуємо залишок плавно кожну секунду (не залежить від розсинхронізації годинників девайсів)
-        remainingSec -= 0.2; // оновлення кожні 200мс (крок інтервалу нижче)
+        remainingSec -= 0.1; // Плавний крок оновлення (100 мс)
       
         if (activeFill) {
           if (remainingSec > 0) {
-            const scaleVal = Math.max(0, remainingSec / totalSec);
+            // Суворий захист: scaleVal завжди в межах від 0 до 1 (жодних зависань на 100% чи вильотів)
+            const scaleVal = Math.max(0, Math.min(1, remainingSec / totalSec));
             activeFill.style.transform = 'scaleX(' + scaleVal + ')';
           
             if (remainingSec <= 5) {
@@ -282,7 +282,7 @@ function renderPhases(status, username) {
             playerTimerInterval = null;
           }
         }
-      }, 200); // Плавніший інтервал 200мс
+      }, 100);
     }
   } else if (status.timerState === 'expired' || playerIsExpired) {
     if (activeContainer) activeContainer.style.display = 'block';
