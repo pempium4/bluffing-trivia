@@ -240,24 +240,35 @@ function renderPhases(status, username) {
     status.timerSeconds
   ) {
     if (activeContainer) activeContainer.style.display = 'block';
+    
     if (playerLastRunningStart !== status.timerStartTime) {
       playerLastRunningStart = status.timerStartTime;
       playerIsExpired = false;
       if (playerTimerInterval) clearInterval(playerTimerInterval);
-      const totalSec = parseInt(status.timerSeconds) || 30;
-      const startTime = parseInt(status.timerStartTime) || new Date().getTime();
       
+      const totalSec = parseInt(status.timerSeconds) || 30;
+      
+      // Вираховуємо скільки часу вже минуло з урахуванням серверного/адмінського старту
+      const initialElapsed = (new Date().getTime() - parseInt(status.timerStartTime)) / 1000;
+      let remainingSec = totalSec - initialElapsed;
+      
+      // Якщо через різницю годинників час уже вийшов або пішов у мінус
+      if (remainingSec <= 0) {
+        remainingSec = 0;
+        playerIsExpired = true;
+      }
+ 
       playerTimerInterval = setInterval(() => {
         if (playerIsExpired) return;
-        const now = new Date().getTime();
-        const elapsedSec = (now - startTime) / 1000;
-        const remainingSec = totalSec - elapsedSec;
-       
+        
+        // Зменшуємо залишок плавно кожну секунду (не залежить від розсинхронізації годинників девайсів)
+        remainingSec -= 0.2; // оновлення кожні 200мс (крок інтервалу нижче)
+      
         if (activeFill) {
           if (remainingSec > 0) {
             const scaleVal = Math.max(0, remainingSec / totalSec);
             activeFill.style.transform = 'scaleX(' + scaleVal + ')';
-           
+          
             if (remainingSec <= 5) {
               activeFill.style.backgroundColor = '#c62828';
             } else {
@@ -269,12 +280,9 @@ function renderPhases(status, username) {
             activeFill.style.backgroundColor = '#c62828';
             clearInterval(playerTimerInterval);
             playerTimerInterval = null;
-            if (sessionInfo && sessionInfo.docRef) {
-              updateDoc(sessionInfo.docRef, { timerState: 'expired' });
-            }
           }
         }
-      }, 50);
+      }, 200); // Плавніший інтервал 200мс
     }
   } else if (status.timerState === 'expired' || playerIsExpired) {
     if (activeContainer) activeContainer.style.display = 'block';
@@ -305,7 +313,6 @@ function renderPhases(status, username) {
       }
     }
   }
-
   if (status.phase === 'SUBMIT') {
     document.getElementById('submitLoader').style.display = 'none';
     document.getElementById('voteLoader').style.display = 'none';
