@@ -794,33 +794,57 @@ window.handleCsvImport = function (event) {
   reader.readAsText(file, 'UTF-8');
  };
 
-let adminTimerInterval = null;
-
-// Додай цю функцію в admin.js
-function handleAdminTimer(state) {
-  if (adminTimerInterval) {
-    clearInterval(adminTimerInterval);
-    adminTimerInterval = null;
-  }
-
-  if (state.timerState === 'running' && state.timerStartTime && state.timerSeconds) {
-    const totalMs = Number(state.timerSeconds) * 1000;
-    const startTime = Number(state.timerStartTime);
-
-    adminTimerInterval = setInterval(async () => {
-      const now = new Date().getTime();
-      const elapsed = now - startTime;
-      if (elapsed >= totalMs) {
-        clearInterval(adminTimerInterval);
-        adminTimerInterval = null;
-        // Коли час вийшов — оновлюємо статус в сесії на expired
-        if (sessionInfo && sessionInfo.docRef) {
-          await updateDoc(sessionInfo.docRef, { timerState: 'expired' });
-        }
-      }
-    }, 200);
-  }
-}
+ let adminTimerInterval = null;
+ let activeTimerStartTime = null;
+ 
+ // Повністю незалежний від годинників пристроїв таймер (працює через локальний відлік)
+ function handleAdminTimer(state) {
+   // Якщо таймер не запущений або зупинений
+   if (state.timerState !== 'running' || !state.timerSeconds) {
+     if (adminTimerInterval) {
+       clearInterval(adminTimerInterval);
+       adminTimerInterval = null;
+     }
+     activeTimerStartTime = null;
+     return;
+   }
+ 
+   // Якщо це той самий активний таймер — не перезапускаємо інтервал при діях гравців (голосах/відповідях)
+   if (adminTimerInterval && activeTimerStartTime === state.timerStartTime) {
+     return;
+   }
+ 
+   // Якщо це новий запуск таймера — очищуємо попередній інтервал
+   if (adminTimerInterval) {
+     clearInterval(adminTimerInterval);
+     adminTimerInterval = null;
+   }
+ 
+   activeTimerStartTime = state.timerStartTime;
+   
+   // Беремо кількість секунд і запускаємо незалежний інтервал зворотного відліку
+   let remainingSecs = Number(state.timerSeconds);
+ 
+   adminTimerInterval = setInterval(async () => {
+     remainingSecs--;
+ 
+     // Коли час вийшов (менше або дорівнює 0 секунд)
+     if (remainingSecs <= 0) {
+       clearInterval(adminTimerInterval);
+       adminTimerInterval = null;
+       activeTimerStartTime = null;
+ 
+       // Оновлюємо статус в базі на expired
+       if (sessionInfo && sessionInfo.docRef) {
+         try {
+           await updateDoc(sessionInfo.docRef, { timerState: 'expired' });
+         } catch (err) {
+           console.error('Помилка оновлення таймера:', err);
+         }
+       }
+     }
+   }, 1000); // Ровно 1 раз на секунду, незалежно від системного часу процесора чи пристрою
+ }
 
 // Елементи нового модального вікна видалення
 const deleteSessionModal = document.getElementById('deleteSessionModal');
