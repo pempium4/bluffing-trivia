@@ -236,35 +236,36 @@ function renderPhases(status, username) {
 
   if (
     status.timerState === 'running' &&
-    status.timerStartTime &&
     status.timerSeconds
   ) {
     if (activeContainer) activeContainer.style.display = 'block';
     
-    // Запускаємо локальний відлік лише якщо змінився старт таймера (новий раунд/запуск)
-    if (playerLastRunningStart !== status.timerStartTime) {
-      playerLastRunningStart = status.timerStartTime;
+    // Використовуємо timerStartTime або унікальний ключ запуску, щоб ловити момент натискання «Старт»
+    const timerSessionKey = `${status.phase}_${status.timerStartTime}`;
+    
+    if (playerLastRunningStart !== timerSessionKey) {
+      playerLastRunningStart = timerSessionKey;
       playerIsExpired = false;
       if (playerTimerInterval) clearInterval(playerTimerInterval);
       
-      // Беремо чітку кількість секунд із бази і починаємо з повного значення (100%)
+      // Беремо чітку кількість секунд, яку передав ведучий (наприклад, 20 або 30 с)
       const totalSec = parseInt(status.timerSeconds) || 30;
       let remainingSec = totalSec; 
  
+      // Запускаємо абсолютно незалежний локальний відлік
       playerTimerInterval = setInterval(() => {
         if (playerIsExpired) return;
         
-        // Плавно зменшуємо локальний залишок на 0.1 секунди кожні 100 мс
-        remainingSec -= 0.1;
+        remainingSec -= 0.1; // Зменшуємо кожні 100 мс
       
         if (activeFill) {
           if (remainingSec > 0) {
-            // Чітко розраховуємо шкалу від 0 до 1 (від 0% до 100%)
+            // Чіткий розрахунок ширини від 100% до 0%
             const scaleVal = Math.max(0, Math.min(1, remainingSec / totalSec));
             activeFill.style.transform = 'scaleX(' + scaleVal + ')';
           
             if (remainingSec <= 5) {
-              activeFill.style.backgroundColor = '#c62828';
+              activeFill.style.backgroundColor = '#c62828'; // Червоний в кінці
             } else {
               activeFill.style.backgroundColor = '';
             }
@@ -276,9 +277,11 @@ function renderPhases(status, username) {
             playerTimerInterval = null;
           }
         }
-      }, 100); // Оновлення кожні 100 мс для ідеальної плавності смужки
+      }, 100);
     }
-  } else if (status.timerState === 'expired' || playerIsExpired) {
+  } 
+  // Якщо таймер завершився або зупинений
+  else if (status.timerState === 'expired' || playerIsExpired) {
     if (activeContainer) activeContainer.style.display = 'block';
     if (playerTimerInterval) {
       clearInterval(playerTimerInterval);
@@ -288,23 +291,17 @@ function renderPhases(status, username) {
       activeFill.style.transform = 'scaleX(0)';
       activeFill.style.backgroundColor = '#c62828';
     }
-  } else {
+  } 
+  else {
     if (activeContainer) activeContainer.style.display = 'block';
     if (playerTimerInterval) {
       clearInterval(playerTimerInterval);
       playerTimerInterval = null;
     }
-    playerLastRunningStart = status.timerStartTime || 0;
-    if (playerIsExpired) {
-      if (activeFill) {
-        activeFill.style.transform = 'scaleX(0)';
-        activeFill.style.backgroundColor = '#c62828';
-      }
-    } else {
-      if (activeFill) {
-        activeFill.style.transform = 'scaleX(1)';
-        activeFill.style.backgroundColor = '';
-      }
+    playerLastRunningStart = null;
+    if (activeFill) {
+      activeFill.style.transform = 'scaleX(1)';
+      activeFill.style.backgroundColor = '';
     }
   }
   if (status.phase === 'SUBMIT') {
