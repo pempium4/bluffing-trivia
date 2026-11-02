@@ -709,28 +709,68 @@ async function loadLeaderboardData(roomCode) {
   }
 }
 
-// Підписка на живий список підключених гравців
+let lastPlayersSnapshot = null;
+let lastRenderedSignature = ''; // 👈 Зберігаємо підпис поточного стану гравців
+
 function subscribeToConnectedPlayers(roomCode) {
   const q = query(collection(db, 'players'), where('roomCode', '==', roomCode));
   
   onSnapshot(q, (snapshot) => {
-    const container = document.getElementById('connectedPlayersContainer');
-    if (!container) return;
-    
-    container.innerHTML = '';
-    
-    if (snapshot.empty) {
-      container.innerHTML = '<span style="color: #888; font-size: 14px;">Очікуємо підключення гравців...</span>';
-      return;
-    }
+    lastPlayersSnapshot = snapshot;
+    renderConnectedPlayers();
+  });
 
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      const chip = document.createElement('div');
-      chip.className = 'player-chip';
-      chip.innerText = data.userName; // Відображає і обране емодзі, і нік (наприклад: "🦊 Мартишка")
-      container.appendChild(chip);
-    });
+  // Фонова перевірка для видалення неактивних
+  setInterval(() => {
+    if (lastPlayersSnapshot) {
+      renderConnectedPlayers();
+    }
+  }, 2000);
+}
+
+function renderConnectedPlayers() {
+  const container = document.getElementById('connectedPlayersContainer');
+  if (!container || !lastPlayersSnapshot) return;
+  
+  const now = Date.now();
+  const activePlayers = [];
+
+  lastPlayersSnapshot.forEach((docSnap) => {
+    const data = docSnap.data();
+    const lastSeen = data.lastSeen || 0;
+    
+    // Перевіряємо, чи гравець онлайн (сигнал був менше ніж 5 секунд тому)
+    if ((now - lastSeen) < 5000) {
+      activePlayers.push({
+        id: docSnap.id,
+        userName: data.userName
+      });
+    }
+  });
+
+  // Формуємо унікальний «підпис» поточного складу гравців
+  activePlayers.sort((a, b) => a.id.localeCompare(b.id));
+  const currentSignature = activePlayers.map(p => p.id).join(',');
+
+  // 🛑 ЯКЩО СКЛАД НЕ ЗМІНИВСЯ — ВИХОДИМО І НЕ ПЕРЕМАЛЬОВУЄМО ДОМ (прибирає блимання)
+  if (currentSignature === lastRenderedSignature) {
+    return;
+  }
+
+  lastRenderedSignature = currentSignature;
+  container.innerHTML = '';
+
+  if (activePlayers.length === 0) {
+    container.innerHTML = '<span style="color: #888; font-size: 14px;">Очікуємо підключення гравців...</span>';
+    return;
+  }
+
+  // Створюємо елементи лише тоді, коли хтось дійсно зайшов або вийшов
+  activePlayers.forEach((player) => {
+    const chip = document.createElement('div');
+    chip.className = 'player-chip';
+    chip.innerText = player.userName;
+    container.appendChild(chip);
   });
 }
 

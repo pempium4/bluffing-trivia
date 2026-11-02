@@ -56,6 +56,51 @@ window.onload = async function () {
   checkUserSession(sessionInfo.roomCode);
 };
 
+let heartbeatInterval = null;
+let myPlayerDocId = null;
+
+async function startPlayerHeartbeat(roomCode, userName) {
+  if (!db) return;
+  
+  try {
+    const playerRef = doc(collection(db, 'players'));
+    myPlayerDocId = playerRef.id;
+
+    // Реєструємося вперше
+    await setDoc(playerRef, {
+      roomCode: roomCode,
+      userName: userName,
+      lastSeen: Date.now()
+    });
+
+    // Кожні 4 секунди оновлюємо час останньої активності
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    heartbeatInterval = setInterval(async () => {
+      try {
+        await updateDoc(doc(db, 'players', myPlayerDocId), {
+          lastSeen: Date.now()
+        });
+      } catch (e) {
+        console.error('Помилка оновлення статусу активності:', e);
+      }
+    }, 3000);
+
+  } catch (err) {
+    console.error('Помилка запуску heartbeat гравця:', err);
+  }
+}
+
+// Видаляємо гравця з бази при закритті вкладки чи виході
+window.addEventListener('beforeunload', async () => {
+  if (myPlayerDocId && db) {
+    try {
+      await deleteDoc(doc(db, 'players', myPlayerDocId));
+    } catch (e) {
+      console.error('Помилка видалення гравця при виході:', e);
+    }
+  }
+});
+
 function checkUserSession(roomCode) {
   const savedName = localStorage.getItem('bluff_username') || '';
   const loginScreen = document.getElementById('loginScreen');
@@ -75,6 +120,7 @@ function checkUserSession(roomCode) {
       usernameInput.value = savedName;
       usernameInput.readOnly = true;
     }
+    startPlayerHeartbeat(roomCode, savedName);
     subscribeToGameState(savedName, roomCode);
   } else {
     if (loginScreen) loginScreen.style.display = 'block';
