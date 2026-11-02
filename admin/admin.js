@@ -64,11 +64,25 @@ async function initAdmin() {
   onSnapshot(sessionInfo.docRef, async (docSnap) => {
     if (!docSnap.exists()) return;
     currentGameState = docSnap.data();
+    if (!currentGameState) return;
 
     if (isFirstRender) {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('adminContent').style.display = 'block';
-      await loadQuestionsSelect(currentGameState.currentRound || 1);
+      
+      const savedRound = currentGameState.currentRound || 1;
+      await updateDoc(sessionInfo.docRef, {
+        phase: 'idle',
+        gameView: 'QR',
+        showQuestion: false,
+        showVoters: false,
+        showBoardToPlayers: false,
+        timerState: 'idle',
+        timerStartTime: 0,
+        shuffledAnswers: []
+      });
+ 
+      await loadQuestionsSelect(savedRound);
       isFirstRender = false;
     }
     renderAdminUI(currentGameState);
