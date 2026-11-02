@@ -7,6 +7,9 @@ import {
   addDoc,
   getDocs,
   serverTimestamp,
+  deleteDoc,
+  query,
+  where,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -34,6 +37,62 @@ function generateRoomCode() {
   }
   return code;
 }
+
+// Функція фонового очищення старих пустих кімнат (> 7 днів без запитань)
+async function cleanupStaleEmptyRooms() {
+  try {
+    const now = Date.now();
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000; // 7 днів у мілісекундах
+
+    const sessionsSnapshot = await getDocs(collection(db, 'sessions'));
+    
+    sessionsSnapshot.forEach(async (sessionDoc) => {
+      const sessionData = sessionDoc.data();
+      const roomCode = sessionData.code;
+      
+      // Визначаємо час створення (підтримуємо як serverTimestamp, так і звичайний час)
+      let createdAtTime = now;
+      if (sessionData.createdAt) {
+        if (typeof sessionData.createdAt.seconds === 'number') {
+          createdAtTime = sessionData.createdAt.seconds * 1000;
+        } else if (typeof sessionData.createdAt === 'number') {
+          createdAtTime = sessionData.createdAt;
+        }
+      }
+
+      // Перевіряємо, чи минуло більше 7 днів
+      if (now - createdAtTime > SEVEN_DAYS_MS) {
+        // Перевіряємо кількість запитань для цієї кімнати
+        const questionsQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
+        const questionsSnapshot = await getDocs(questionsQuery);
+
+        // Якщо запитань немає взагалі (0 запитань)
+        if (questionsSnapshot.empty) {
+          console.log(`🧹 Видаляємо стару пусту кімнату ${roomCode} через неактивність (> 7 днів).`);
+          
+          // Видаляємо саму сесію
+          await deleteDoc(sessionDoc.ref);
+          
+          // Підчищаємо відповіді та голоси, якщо вони залишилися
+          const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
+          const answersSnapshot = await getDocs(answersQuery);
+          answersSnapshot.forEach(async (ansDoc) => await deleteDoc(ansDoc.ref));
+
+          const votesQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
+          const votesSnapshot = await getDocs(votesQuery);
+          votesSnapshot.forEach(async (voteDoc) => await deleteDoc(voteDoc.ref));
+        }
+      }
+    });
+  } catch (err) {
+    console.error("Помилка під час фонового очищення кімнат:", err);
+  }
+}
+
+// Запускаємо очищення при завантаженні головної сторінки
+document.addEventListener('DOMContentLoaded', () => {
+  cleanupStaleEmptyRooms();
+});
 
 // Керування модалками
 window.openCreateModal = function () {
@@ -126,7 +185,7 @@ window.createGameSession = async function () {
     localStorage.setItem('currentSessionCode', roomCode);
     localStorage.setItem('isAdmin', 'true');
 
-    window.location.href = `./admin/admin.html?room=${roomCode}`;
+    window.location.href = `./admin/index.html?room=${roomCode}`;
   } catch (error) {
     console.error('Помилка створення сесії:', error);
     alert('Сталася помилка при створенні сесії.');
