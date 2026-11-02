@@ -332,7 +332,7 @@ function renderPhases(status, username) {
             playerTimerInterval = null;
           }
         }
-      }, 100);
+      }, 50);
     }
   } 
   // Якщо таймер завершився або зупинений
@@ -459,6 +459,8 @@ window.submitAnswer = async function () {
   errDiv.style.display = 'none';
   isSubmittingOrVoting = true;
   document.getElementById('submitFormArea').style.display = 'none';
+  const timerContSubmit = document.getElementById('playerTimerContainerSubmit');
+  if (timerContSubmit) timerContSubmit.style.display = 'none';
   document.getElementById('submitLoader').style.display = 'block';
   
   try {
@@ -489,6 +491,7 @@ window.submitAnswer = async function () {
     isSubmittingOrVoting = false;
     document.getElementById('submitLoader').style.display = 'none';
     document.getElementById('submitFormArea').style.display = 'block';
+    if (timerContSubmit) timerContSubmit.style.display = 'block';
     errDiv.innerText = "Помилка зв'язку з базою даних.";
     errDiv.style.display = 'block';
   }
@@ -504,6 +507,8 @@ window.sendVote = async function (encodedAnsId, encodedAnsText) {
 
   isSubmittingOrVoting = true;
   document.getElementById('voteArea').style.display = 'none';
+  const timerContVote = document.getElementById('playerTimerContainerVote');
+  if (timerContVote) timerContVote.style.display = 'none';
   document.getElementById('voteLoader').style.display = 'block';
 
   try {
@@ -534,6 +539,7 @@ window.sendVote = async function (encodedAnsId, encodedAnsText) {
     isSubmittingOrVoting = false;
     document.getElementById('voteLoader').style.display = 'none';
     document.getElementById('voteArea').style.display = 'block';
+    if (timerContVote) timerContVote.style.display = 'block';
     errDiv.innerText = "Помилка зв'язку з базою даних.";
     errDiv.style.display = 'block';
   }

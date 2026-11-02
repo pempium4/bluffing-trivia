@@ -810,56 +810,134 @@ window.handleCsvImport = function (event) {
 
  let adminTimerInterval = null;
  let activeTimerStartTime = null;
+  
+  // Повністю незалежний від годинників пристроїв таймер (працює через локальний відлік)
+  function handleAdminTimer(state) {
+    // Якщо таймер не запущений або зупинений
+    if (state.timerState !== 'running' || !state.timerSeconds) {
+      if (adminTimerInterval) {
+        clearInterval(adminTimerInterval);
+        adminTimerInterval = null;
+      }
+      activeTimerStartTime = null;
+      return;
+    }
+  
+    // Якщо це той самий активний таймер — не перезапускаємо інтервал при діях гравців (голосах/відповідях)
+    if (adminTimerInterval && activeTimerStartTime === state.timerStartTime) {
+      return;
+    }
+  
+    // Якщо це новий запуск таймера — очищуємо попередній інтервал
+    if (adminTimerInterval) {
+      clearInterval(adminTimerInterval);
+      adminTimerInterval = null;
+    }
+  
+    activeTimerStartTime = state.timerStartTime;
+    
+    // Беремо кількість секунд і запускаємо незалежний інтервал зворотного відліку
+    let remainingSecs = Number(state.timerSeconds);
+  
+    adminTimerInterval = setInterval(async () => {
+      remainingSecs--;
+  
+      // 1. Перевіряємо, чи всі активні гравці виконали дію (дали відповідь або проголосували)
+      if (sessionInfo && sessionInfo.roomCode) {
+        try {
+          const roomCode = sessionInfo.roomCode;
+          const currentRound = Number(state.currentRound) || 1;
+          const phase = state.phase;
+          const now = Date.now();
  
- // Повністю незалежний від годинників пристроїв таймер (працює через локальний відлік)
- function handleAdminTimer(state) {
-   // Якщо таймер не запущений або зупинений
-   if (state.timerState !== 'running' || !state.timerSeconds) {
-     if (adminTimerInterval) {
-       clearInterval(adminTimerInterval);
-       adminTimerInterval = null;
-     }
-     activeTimerStartTime = null;
-     return;
-   }
+          // Отримуємо активних гравців (останній heartbeat < 7 секунд)
+          const playersSnap = await getDocs(query(collection(db, 'players'), where('roomCode', '==', roomCode)));
+          const activePlayersNames = new Set();
  
-   // Якщо це той самий активний таймер — не перезапускаємо інтервал при діях гравців (голосах/відповідях)
-   if (adminTimerInterval && activeTimerStartTime === state.timerStartTime) {
-     return;
-   }
+          playersSnap.forEach(docSnap => {
+            const pData = docSnap.data();
+            if ((now - (pData.lastSeen || 0)) < 7000) {
+              if (pData.userName) {
+                activePlayersNames.add(pData.userName.trim().toLowerCase());
+              }
+            }
+          });
  
-   // Якщо це новий запуск таймера — очищуємо попередній інтервал
-   if (adminTimerInterval) {
-     clearInterval(adminTimerInterval);
-     adminTimerInterval = null;
-   }
+          const activeCount = activePlayersNames.size;
  
-   activeTimerStartTime = state.timerStartTime;
-   
-   // Беремо кількість секунд і запускаємо незалежний інтервал зворотного відліку
-   let remainingSecs = Number(state.timerSeconds);
+          if (activeCount > 0) {
+            let allCompleted = false;
  
-   adminTimerInterval = setInterval(async () => {
-     remainingSecs--;
+            if (phase === 'SUBMIT') {
+              const answersSnap = await getDocs(query(collection(db, 'answers'), where('roomCode', '==', roomCode)));
+              const submittedNames = new Set();
+              answersSnap.forEach(docSnap => {
+                const aData = docSnap.data();
+                if (Number(aData.roundNum) === currentRound && aData.userName) {
+                  submittedNames.add(aData.userName.trim().toLowerCase());
+                }
+              });
  
-     // Коли час вийшов (менше або дорівнює 0 секунд)
-     if (remainingSecs <= 0) {
-       clearInterval(adminTimerInterval);
-       adminTimerInterval = null;
-       activeTimerStartTime = null;
+              let answeredActiveCount = 0;
+              activePlayersNames.forEach(name => {
+                if (submittedNames.has(name)) answeredActiveCount++;
+              });
  
-       // Оновлюємо статус в базі на expired
-       if (sessionInfo && sessionInfo.docRef) {
-         try {
-           await updateDoc(sessionInfo.docRef, { timerState: 'expired' });
-         } catch (err) {
-           console.error('Помилка оновлення таймера:', err);
-         }
-       }
-     }
-   }, 1000); // Ровно 1 раз на секунду, незалежно від системного часу процесора чи пристрою
- }
-
+              if (answeredActiveCount >= activeCount) {
+                allCompleted = true;
+              }
+ 
+            } else if (phase === 'VOTE') {
+              const votesSnap = await getDocs(query(collection(db, 'votes'), where('roomCode', '==', roomCode)));
+              const votedNames = new Set();
+              votesSnap.forEach(docSnap => {
+                const vData = docSnap.data();
+                if (Number(vData.roundNum) === currentRound && vData.userName) {
+                  votedNames.add(vData.userName.trim().toLowerCase());
+                }
+              });
+ 
+              let votedActiveCount = 0;
+              activePlayersNames.forEach(name => {
+                if (votedNames.has(name)) votedActiveCount++;
+              });
+ 
+              if (votedActiveCount >= activeCount) {
+                allCompleted = true;
+              }
+            }
+ 
+            // Якщо всі активні гравці завершили — завершуємо таймер достроково
+            if (allCompleted) {
+              clearInterval(adminTimerInterval);
+              adminTimerInterval = null;
+              activeTimerStartTime = null;
+              await updateDoc(sessionInfo.docRef, { timerState: 'expired' });
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('Помилка перевірки завершення фази гравцями:', err);
+        }
+      }
+  
+      // 2. Коли час вийшов (менше або дорівнює 0 секунд)
+      if (remainingSecs <= 0) {
+        clearInterval(adminTimerInterval);
+        adminTimerInterval = null;
+        activeTimerStartTime = null;
+  
+        // Оновлюємо статус в базі на expired
+        if (sessionInfo && sessionInfo.docRef) {
+          try {
+            await updateDoc(sessionInfo.docRef, { timerState: 'expired' });
+          } catch (err) {
+            console.error('Помилка оновлення таймера:', err);
+          }
+        }
+      }
+    }, 1000); // Рівно 1 раз на секунду
+  }
 // Елементи нового модального вікна видалення
 const deleteSessionModal = document.getElementById('deleteSessionModal');
 const openDeleteBtn = document.getElementById('openDeleteSessionModalBtn');
