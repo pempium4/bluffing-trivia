@@ -83,7 +83,7 @@ function checkUserSession(roomCode) {
   }
 }
 
-window.joinGame = function () {
+window.joinGame = async function () {
   const emojiSelect = document.getElementById('userEmojiSelect');
   const emoji = emojiSelect ? emojiSelect.value : '👤';
 
@@ -104,17 +104,26 @@ window.joinGame = function () {
   localStorage.setItem('bluff_user_emoji', emoji);
   localStorage.setItem('bluff_user_name_only', name);
 
-  if (sessionInfo) {
+  if (sessionInfo && sessionInfo.docRef) {
+    try {
+      // Записуємо гравця в колекцію players, щоб дошка одразу його бачила
+      const playerRef = doc(collection(db, 'players'));
+      await setDoc(playerRef, {
+        roomCode: sessionInfo.roomCode,
+        userName: fullUserName,
+        createdAt: new Date().getTime()
+      });
+    } catch (err) {
+      console.error('Помилка реєстрації гравця:', err);
+    }
     checkUserSession(sessionInfo.roomCode);
   }
 };
 
 window.changeNickname = function () {
-  if (unsubscribeGame) unsubscribeGame();
   localStorage.removeItem('bluff_username');
-  if (sessionInfo) {
-    checkUserSession(sessionInfo.roomCode);
-  }
+  if (unsubscribeGame) unsubscribeGame();
+  location.reload();
 };
 
 // Підписка на стан гри з документа сесії в реальному часі

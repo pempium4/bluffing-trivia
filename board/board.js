@@ -53,6 +53,9 @@ async function initBoard() {
     roomCodeEl.innerText = `Код кімнати: ${sessionInfo.roomCode}`;
   }
 
+  // ЗАПУСКАЄМО СЛУХАЧА ГРАВЦІВ ДЛЯ ЦІЄЇ КІМНАТИ
+ subscribeToConnectedPlayers(sessionInfo.roomCode);
+
   // Слухаємо стан гри саме з документа сесії в колекції sessions
   onSnapshot(sessionInfo.docRef, async (docSnap) => {
     if (!docSnap.exists()) return;
@@ -380,19 +383,22 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
 
   answersWrapper.style.display = 'block';
 
-  // Логіка запуску ланцюжка модалок при увімкненні світчера "Показати авторів та голоси"
-  const justTurnedOnVoters = state.showVoters && !lastShowVotersState;
+  // Модалки показуємо лише тоді, коли увімкнено світчер І активна фаза Голосування ('VOTE')
+  const isVotePhase = state.phase === 'VOTE';
+  const shouldShowModal = state.showVoters && isVotePhase;
+
+  const justTurnedOnVoters = shouldShowModal && !lastShowVotersState;
   
   if (justTurnedOnVoters) {
     revealStepIndex = 0;
     if (revealTimeout) clearTimeout(revealTimeout);
     startRevealSequence();
-  } else if (!state.showVoters) {
+  } else if (!shouldShowModal) {
     revealStepIndex = activeCardItems.length;
     if (revealTimeout) { clearTimeout(revealTimeout); revealTimeout = null; }
     modalContainer.innerHTML = '';
   }
-  lastShowVotersState = !!state.showVoters;
+  lastShowVotersState = shouldShowModal;
 
   function startRevealSequence() {
     if (!state.showVoters || revealStepIndex >= activeCardItems.length) {
@@ -526,7 +532,8 @@ async function loadAnswersAndVotes(state, currentRoundNum, roomCode) {
   function renderBoardContent(showModal = false) {
     renderListOnly();
 
-    if (showModal && state.showVoters && revealStepIndex < activeCardItems.length) {
+    const isVotePhase = state.phase === 'VOTE';
+    if (showModal && state.showVoters && isVotePhase && revealStepIndex < activeCardItems.length) {
       const currentCardItem = activeCardItems[revealStepIndex];
       let cardVoters = [];
       const isCorrect = currentCardItem.id === 'correct' + currentRoundNum || (currentCardItem.id && currentCardItem.id.startsWith('correct'));
@@ -700,6 +707,31 @@ async function loadLeaderboardData(roomCode) {
   if (lbTable) {
     lbTable.innerHTML = lbHtml;
   }
+}
+
+// Підписка на живий список підключених гравців
+function subscribeToConnectedPlayers(roomCode) {
+  const q = query(collection(db, 'players'), where('roomCode', '==', roomCode));
+  
+  onSnapshot(q, (snapshot) => {
+    const container = document.getElementById('connectedPlayersContainer');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (snapshot.empty) {
+      container.innerHTML = '<span style="color: #888; font-size: 14px;">Очікуємо підключення гравців...</span>';
+      return;
+    }
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const chip = document.createElement('div');
+      chip.className = 'player-chip';
+      chip.innerText = data.userName; // Відображає і обране емодзі, і нік (наприклад: "🦊 Мартишка")
+      container.appendChild(chip);
+    });
+  });
 }
 
 // Запуск ініціалізації дошки
