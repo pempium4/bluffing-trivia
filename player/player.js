@@ -289,7 +289,16 @@ function renderPhases(status, username) {
   );
   if (inactiveContainer) inactiveContainer.style.display = 'none';
 
-  if (
+  // Якщо гравець уже надіслав відповідь або проголосував — ховаємо смужку таймера взагалі
+  const isDone = (status.phase === 'SUBMIT' && status.hasSubmitted) || (status.phase === 'VOTE' && status.hasVoted);
+
+  if (isDone) {
+    if (activeContainer) activeContainer.style.display = 'none';
+    if (playerTimerInterval) {
+      clearInterval(playerTimerInterval);
+      playerTimerInterval = null;
+    }
+  } else if (
     status.timerState === 'running' &&
     status.timerSeconds
   ) {
