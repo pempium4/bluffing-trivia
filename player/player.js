@@ -332,7 +332,7 @@ function renderPhases(status, username) {
             playerTimerInterval = null;
           }
         }
-      }, 50);
+      }, 100);
     }
   } 
   // Якщо таймер завершився або зупинений
