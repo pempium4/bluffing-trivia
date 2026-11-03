@@ -26,7 +26,6 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 let isFirstRender = true;
-let isTimerEditing = false;
 let globalQuestionsCache = [];
 let draggedRow = null;
 let currentGameState = null;
@@ -86,6 +85,14 @@ async function initAdmin() {
       isFirstRender = false;
     }
     renderAdminUI(currentGameState);
+
+    // Синхронізація чекбоксів налаштувань при зміні даних в БД
+    if (currentGameState.gameSettings) {
+      const gSet = currentGameState.gameSettings;
+      if (document.getElementById('half-vote-time')) document.getElementById('half-vote-time').checked = !!gSet.halfVoteTime;
+      if (document.getElementById('auto-board-update')) document.getElementById('auto-board-update').checked = !!gSet.autoBoardUpdate;
+      if (document.getElementById('finish-on-last-player')) document.getElementById('finish-on-last-player').checked = !!gSet.finishOnLastPlayer;
+    }
     
     // Запускаємо перевірку таймера та автоматизацію
     handleAdminTimer(currentGameState);
@@ -105,44 +112,51 @@ let autoShowTimeout = null;
 let hasAutoSwitchedQuestion = false;
 let autoShowVoteTimeout = null;
 let hasAutoSwitchedVote = false;
+let isRevealingAnswers = false; // Блокувальник для уникнення подвійного виклику
 
 function checkAutomationTimeouts(state) {
+  const isAutoEnabled = state.gameSettings?.autoBoardUpdate === true;
+
+  // Якщо фаза SUBMIT
   if (state.phase === 'SUBMIT') {
-    if (state.timerState === 'expired') {
-      if (!state.showQuestion && !hasAutoSwitchedQuestion && !autoShowTimeout) {
+    if (state.timerState === 'expired' && isAutoEnabled) {
+      if (!state.showQuestion && !hasAutoSwitchedQuestion && !autoShowTimeout && !isRevealingAnswers) {
         autoShowTimeout = setTimeout(async () => {
           hasAutoSwitchedQuestion = true;
-          autoShowTimeout = null;
           if (typeof window.toggleShowQuestion === 'function') {
             await window.toggleShowQuestion(true);
           }
+          autoShowTimeout = null;
         }, 4500);
       }
-    } else if (state.timerState === 'running') {
+    } else if (state.timerState === 'running' || !isAutoEnabled) {
       hasAutoSwitchedQuestion = false;
       if (autoShowTimeout) { clearTimeout(autoShowTimeout); autoShowTimeout = null; }
     }
   } else {
+    // Скидаємо прапорці, якщо ми не в фазі SUBMIT
     hasAutoSwitchedQuestion = false;
     if (autoShowTimeout) { clearTimeout(autoShowTimeout); autoShowTimeout = null; }
   }
 
+  // Якщо фаза VOTE
   if (state.phase === 'VOTE') {
-    if (state.timerState === 'expired') {
+    if (state.timerState === 'expired' && isAutoEnabled) {
       if (!state.showVoters && !hasAutoSwitchedVote && !autoShowVoteTimeout) {
         autoShowVoteTimeout = setTimeout(async () => {
           hasAutoSwitchedVote = true;
-          autoShowVoteTimeout = null;
           if (typeof window.toggleVoters === 'function') {
             await window.toggleVoters(true);
           }
+          autoShowVoteTimeout = null;
         }, 6000);
       }
-    } else if (state.timerState === 'running') {
+    } else if (state.timerState === 'running' || !isAutoEnabled) {
       hasAutoSwitchedVote = false;
       if (autoShowVoteTimeout) { clearTimeout(autoShowVoteTimeout); autoShowVoteTimeout = null; }
     }
   } else {
+    // Скидаємо прапорці, якщо ми не в фазі VOTE
     hasAutoSwitchedVote = false;
     if (autoShowVoteTimeout) { clearTimeout(autoShowVoteTimeout); autoShowVoteTimeout = null; }
   }
@@ -203,6 +217,69 @@ function openSettingsModal() {
   initDragAndDrop();
   reindexRounds();
   modal.style.display = 'flex';
+}
+
+// --- НАЛАШТУВАННЯ ГРИ ---
+const gameSettingsModal = document.getElementById('gameSettingsModal');
+const openGameSettingsBtn = document.getElementById('openGameSettingsBtn');
+
+// Функція для синхронізації UI з поточним станом у базі
+function syncGameSettingsUI() {
+  if (currentGameState && currentGameState.gameSettings) {
+    const gSet = currentGameState.gameSettings;
+    const halfVote = document.getElementById('half-vote-time');
+    const autoBoard = document.getElementById('auto-board-update');
+    const finishLast = document.getElementById('finish-on-last-player');
+    
+    if (halfVote) halfVote.checked = !!gSet.halfVoteTime;
+    if (autoBoard) autoBoard.checked = !!gSet.autoBoardUpdate;
+    if (finishLast) finishLast.checked = !!gSet.finishOnLastPlayer;
+  }
+}
+
+if (openGameSettingsBtn) {
+  openGameSettingsBtn.onclick = (e) => {
+    e.preventDefault();
+    syncGameSettingsUI(); // Синхронізуємо перед відкриттям
+    if (gameSettingsModal) gameSettingsModal.style.display = 'flex';
+  };
+}
+
+const closeGSBtn = document.getElementById('closeGameSettingsBtn');
+const cancelGSBtn = document.getElementById('cancelGameSettingsBtn');
+const saveGSBtn = document.getElementById('saveGameSettingsBtn');
+
+// При скасуванні або закритті — просто ховаємо і повертаємо значення назад
+const rollbackAndClose = () => {
+  syncGameSettingsUI(); 
+  gameSettingsModal.style.display = 'none';
+};
+
+if (closeGSBtn) closeGSBtn.onclick = rollbackAndClose;
+if (cancelGSBtn) cancelGSBtn.onclick = rollbackAndClose;
+
+if (saveGSBtn) {
+  saveGSBtn.onclick = async () => {
+    if (!sessionInfo || !sessionInfo.docRef) return;
+    
+    showLoader('Збереження...');
+    const settings = {
+      halfVoteTime: document.getElementById('half-vote-time').checked,
+      autoBoardUpdate: document.getElementById('auto-board-update').checked,
+      finishOnLastPlayer: document.getElementById('finish-on-last-player').checked
+    };
+
+    try {
+      await updateDoc(sessionInfo.docRef, { gameSettings: settings });
+      // Не викликаємо rollback, бо ми хочемо зберегти нові стани
+      gameSettingsModal.style.display = 'none';
+      hideLoader();
+    } catch (err) {
+      console.error('Помилка збереження налаштувань:', err);
+      hideLoader();
+      alert('Помилка збереження');
+    }
+  };
 }
 
 function initDragAndDrop() {
@@ -397,6 +474,8 @@ async function loadLiveStatsAndScores(state, roomCode) {
         });
       }
     });
+    // Сортуємо по ID документа, щоб порядок був постійним до моменту блефу
+    roundAnswers.sort((a, b) => a.id.localeCompare(b.id));
 
     let currentQ = { correctAnswer: '', wrongAnswer: '' };
     questionsSnap.forEach((docSnap) => {
@@ -606,7 +685,8 @@ window.setPhase = async function (phase) {
   } 
   else if (phase === 'VOTE') {
     // Фаза "Голосування": запускаємо таймер голосування
-    const halfSecs = Math.max(1, Math.floor(baseSecs / 2));
+    const shouldHalve = currentGameState?.gameSettings?.halfVoteTime === true;
+    const halfSecs = shouldHalve ? Math.max(1, Math.floor(baseSecs / 2)) : baseSecs;
 
     updateData.showBoardToPlayers = true;
     updateData.timerState = 'running';
@@ -626,16 +706,23 @@ window.setView = async function (mode) {
 };
 
 window.toggleShowQuestion = async function (isChecked) {
-  if (!sessionInfo) return;
-  if (isChecked) {
+  if (!sessionInfo || isRevealingAnswers) return;
+  if (!isChecked) {
+    await updateDoc(sessionInfo.docRef, { showQuestion: false, shuffledAnswers: [] });
+    return;
+  }
+  if (currentGameState?.showQuestion || (currentGameState?.shuffledAnswers?.length > 0)) {
+    return;
+  }
+
+  isRevealingAnswers = true; // Ставимо замок
+
+  try {
     const currentRoundNum = Number(currentGameState.currentRound) || 1;
-
-    const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', sessionInfo.roomCode));
-    const questionsQuery = query(collection(db, 'questions'), where('roomCode', '==', sessionInfo.roomCode));
-
+    // ... (тут ваш існуючий код отримання відповідей та питань) ...
     const [answersSnap, qSnapshot] = await Promise.all([
-      getDocs(answersQuery),
-      getDocs(questionsQuery),
+      getDocs(query(collection(db, 'answers'), where('roomCode', '==', sessionInfo.roomCode))),
+      getDocs(query(collection(db, 'questions'), where('roomCode', '==', sessionInfo.roomCode))),
     ]);
 
     let currentQ = { correctAnswer: '', wrongAnswer: '' };
@@ -680,14 +767,16 @@ window.toggleShowQuestion = async function (isChecked) {
       [roundAnswers[i], roundAnswers[j]] = [roundAnswers[j], roundAnswers[i]];
     }
 
+    // ОДИН запис у базу в самому кінці
     await updateDoc(sessionInfo.docRef, {
       showQuestion: true,
       shuffledAnswers: roundAnswers,
     });
-  } else {
-    await updateDoc(sessionInfo.docRef, {
-      showQuestion: false,
-    });
+
+  } catch (err) {
+    console.error("Помилка при перемішуванні:", err);
+  } finally {
+    isRevealingAnswers = false; // Знімаємо замок
   }
 };
 
@@ -842,98 +931,73 @@ window.handleCsvImport = function (event) {
     adminTimerInterval = setInterval(async () => {
       remainingSecs--;
   
-      // 1. Перевіряємо, чи всі активні гравці виконали дію (дали відповідь або проголосували)
-      if (sessionInfo && sessionInfo.roomCode) {
+      // Завершувати час по останньому активному гравцю
+    const finishOnLastPlayer = currentGameState?.gameSettings?.finishOnLastPlayer === true;
+
+      if (finishOnLastPlayer && sessionInfo && sessionInfo.roomCode) {
         try {
           const roomCode = sessionInfo.roomCode;
-          const currentRound = Number(state.currentRound) || 1;
-          const phase = state.phase;
+          const currentRound = Number(currentGameState.currentRound) || 1;
+          const phase = currentGameState.phase;
           const now = Date.now();
- 
-          // Отримуємо активних гравців (останній heartbeat < 7 секунд)
+  
+          // Отримуємо активних гравців (lastSeen < 7 секунд)
           const playersSnap = await getDocs(query(collection(db, 'players'), where('roomCode', '==', roomCode)));
           const activePlayersNames = new Set();
- 
+  
           playersSnap.forEach(docSnap => {
             const pData = docSnap.data();
             if ((now - (pData.lastSeen || 0)) < 7000) {
-              if (pData.userName) {
-                activePlayersNames.add(pData.userName.trim().toLowerCase());
-              }
+              if (pData.userName) activePlayersNames.add(pData.userName.trim().toLowerCase());
             }
           });
- 
+  
           const activeCount = activePlayersNames.size;
- 
           if (activeCount > 0) {
             let allCompleted = false;
- 
+  
             if (phase === 'SUBMIT') {
               const answersSnap = await getDocs(query(collection(db, 'answers'), where('roomCode', '==', roomCode)));
               const submittedNames = new Set();
               answersSnap.forEach(docSnap => {
                 const aData = docSnap.data();
-                if (Number(aData.roundNum) === currentRound && aData.userName) {
-                  submittedNames.add(aData.userName.trim().toLowerCase());
-                }
+                if (Number(aData.roundNum) === currentRound && aData.userName) submittedNames.add(aData.userName.trim().toLowerCase());
               });
- 
-              let answeredActiveCount = 0;
-              activePlayersNames.forEach(name => {
-                if (submittedNames.has(name)) answeredActiveCount++;
-              });
- 
-              if (answeredActiveCount >= activeCount) {
-                allCompleted = true;
-              }
- 
+              let answeredCount = 0;
+              activePlayersNames.forEach(name => { if (submittedNames.has(name)) answeredCount++; });
+              if (answeredCount >= activeCount) allCompleted = true;
             } else if (phase === 'VOTE') {
               const votesSnap = await getDocs(query(collection(db, 'votes'), where('roomCode', '==', roomCode)));
               const votedNames = new Set();
               votesSnap.forEach(docSnap => {
                 const vData = docSnap.data();
-                if (Number(vData.roundNum) === currentRound && vData.userName) {
-                  votedNames.add(vData.userName.trim().toLowerCase());
-                }
+                if (Number(vData.roundNum) === currentRound && vData.userName) votedNames.add(vData.userName.trim().toLowerCase());
               });
- 
-              let votedActiveCount = 0;
-              activePlayersNames.forEach(name => {
-                if (votedNames.has(name)) votedActiveCount++;
-              });
- 
-              if (votedActiveCount >= activeCount) {
-                allCompleted = true;
-              }
+              let votedCount = 0;
+              activePlayersNames.forEach(name => { if (votedNames.has(name)) votedCount++; });
+              if (votedCount >= activeCount) allCompleted = true;
             }
- 
-            // Якщо всі активні гравці завершили — завершуємо таймер достроково
+  
             if (allCompleted) {
               clearInterval(adminTimerInterval);
               adminTimerInterval = null;
               activeTimerStartTime = null;
               await updateDoc(sessionInfo.docRef, { timerState: 'expired' });
-              return;
+              return; // Вихід, таймер завершено
             }
           }
         } catch (err) {
-          console.error('Помилка перевірки завершення фази гравцями:', err);
+          console.error('Помилка дострокового завершення:', err);
         }
       }
-  
-      // 2. Коли час вийшов (менше або дорівнює 0 секунд)
+    
+      // 2. Звичайне завершення по 0 секунд
       if (remainingSecs <= 0) {
         clearInterval(adminTimerInterval);
         adminTimerInterval = null;
         activeTimerStartTime = null;
-  
-        // Оновлюємо статус в базі на expired
         if (sessionInfo && sessionInfo.docRef) {
-          try {
-            await updateDoc(sessionInfo.docRef, { timerState: 'expired' });
-          } catch (err) {
-            console.error('Помилка оновлення таймера:', err);
-          }
+          await updateDoc(sessionInfo.docRef, { timerState: 'expired' });
         }
       }
     }, 1000); // Рівно 1 раз на секунду

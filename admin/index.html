@@ -54,12 +54,12 @@
         </div>
 
         <div class="card">
-          <!-- Заголовок без ліній -->
-          <h3
-            style="border-bottom: none; padding-bottom: 0; margin-bottom: 15px"
-          >
-            ⚙️ Керування станом гри
-          </h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; border: none; padding: 0">
+              ⚙️ Керування станом гри
+            </h3>
+            <a href="#" id="openGameSettingsBtn" class="settings-link">Налаштування</a>
+          </div>
 
           <!-- 1. Таймер (ЗІ СМУЖКОЮ) -->
           <div class="switch-container has-border">
@@ -354,6 +354,49 @@
           >
             Зберегти
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модальне вікно налаштувань гри -->
+    <div id="gameSettingsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 10001;">
+      <div style="background: #1e1e1e; border: 1px solid #444; width: 90%; max-width: 500px; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);">
+        
+        <!-- Шапка модалки (Reference style) -->
+        <div style="padding: 16px 20px; background: #252525; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333;">
+          <h2 style="margin: 0; color: #bb86fc; font-size: 20px;">⚙️ Налаштування гри</h2>
+          <button id="closeGameSettingsBtn" style="background: transparent; border: none; color: #aaa; font-size: 20px; cursor: pointer; padding: 0;">✕</button>
+        </div>
+        
+        <!-- Тіло модалки (Settings with Switchers) -->
+        <div style="padding: 20px; background: #1e1e1e;">
+          <div class="switch-container has-border">
+            <span class="switch-label">Зменшити час на голосування вдвічі</span>
+            <label class="switch">
+              <input type="checkbox" id="half-vote-time">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="switch-container has-border">
+            <span class="switch-label">Оновлювати стан дошки автоматично</span>
+            <label class="switch">
+              <input type="checkbox" id="auto-board-update">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="switch-container">
+            <span class="switch-label">Завершувати час по останньому гравцю</span>
+            <label class="switch">
+              <input type="checkbox" id="finish-on-last-player">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Підвал модалки (Reference style) -->
+        <div style="padding: 15px 20px; background: #252525; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #333;">
+          <button id="cancelGameSettingsBtn" style="background: #444; color: #fff; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;">Скасувати</button>
+          <button id="saveGameSettingsBtn" style="background: #03dac6; color: #121212; padding: 10px 25px; border-radius: 8px; font-weight: bold; border: none; cursor: pointer;">Зберегти</button>
         </div>
       </div>
     </div>
