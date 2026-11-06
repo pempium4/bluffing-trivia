@@ -960,7 +960,7 @@ function handleAdminTimer(state) {
         playersSnap.forEach(docSnap => {
           const pData = docSnap.data();
           if ((now - (pData.lastSeen || 0)) < 7000) {
-            if (pData.userId) activePlayersIds.add(pData.userId);
+            activePlayersIds.add(docSnap.id); // Використовуємо ID документа гравця
           }
         });
 
