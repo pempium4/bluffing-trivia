@@ -187,7 +187,7 @@ h1 {
 
 /* Зменшуємо контейнер (картку) QR-коду вдвічі */
 #viewQrMode .lb-card {
-  max-width: 720px;   /* Обмежуємо ширину */
+  max-width: 67%;   /* Обмежуємо ширину */
   margin: 0 auto;
   padding: 15px;      
 }
