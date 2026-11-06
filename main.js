@@ -1,34 +1,28 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import {
   getFirestore,
   doc,
   getDoc,
+  setDoc,
   collection,
-  addDoc,
   getDocs,
   serverTimestamp,
-  deleteDoc,
-  query,
-  where,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyCln7hjCL45RBjSP_XibdsZ1JdL4QE94D4',
-  authDomain: 'bluf-trivia.firebaseapp.com',
-  projectId: 'bluf-trivia',
-  storageBucket: 'bluf-trivia.appspot.com',
-  messagingSenderId: '559894766567',
-  appId: '1:559894766567:web:ba15a3ee7f8c64d5f2d342',
+  apiKey: "AIzaSyCYp0Rtyu20272JG6pF6EB92cTGL13jpNc",
+  authDomain: "bluffing-trivia.firebaseapp.com",
+  projectId: "bluffing-trivia",
+  storageBucket: "bluffing-trivia.firebasestorage.app",
+  messagingSenderId: "642089303002",
+  appId: "1:642089303002:web:457b53be09f2437527dee3"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Глобальні змінні для вибору сесії з архіву
 let selectedSessionCode = '';
-let selectedSessionDocId = '';
 
-// Генератор 4-значного коду англійськими літерами у верхньому регістрі
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let code = '';
@@ -38,63 +32,6 @@ function generateRoomCode() {
   return code;
 }
 
-// Функція фонового очищення старих пустих кімнат (> 7 днів без запитань)
-async function cleanupStaleEmptyRooms() {
-  try {
-    const now = Date.now();
-    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000; // 7 днів у мілісекундах
-
-    const sessionsSnapshot = await getDocs(collection(db, 'sessions'));
-    
-    sessionsSnapshot.forEach(async (sessionDoc) => {
-      const sessionData = sessionDoc.data();
-      const roomCode = sessionData.code;
-      
-      // Визначаємо час створення (підтримуємо як serverTimestamp, так і звичайний час)
-      let createdAtTime = now;
-      if (sessionData.createdAt) {
-        if (typeof sessionData.createdAt.seconds === 'number') {
-          createdAtTime = sessionData.createdAt.seconds * 1000;
-        } else if (typeof sessionData.createdAt === 'number') {
-          createdAtTime = sessionData.createdAt;
-        }
-      }
-
-      // Перевіряємо, чи минуло більше 7 днів
-      if (now - createdAtTime > SEVEN_DAYS_MS) {
-        // Перевіряємо кількість запитань для цієї кімнати
-        const questionsQuery = query(collection(db, 'questions'), where('roomCode', '==', roomCode));
-        const questionsSnapshot = await getDocs(questionsQuery);
-
-        // Якщо запитань немає взагалі (0 запитань)
-        if (questionsSnapshot.empty) {
-          console.log(`🧹 Видаляємо стару пусту кімнату ${roomCode} через неактивність (> 7 днів).`);
-          
-          // Видаляємо саму сесію
-          await deleteDoc(sessionDoc.ref);
-          
-          // Підчищаємо відповіді та голоси, якщо вони залишилися
-          const answersQuery = query(collection(db, 'answers'), where('roomCode', '==', roomCode));
-          const answersSnapshot = await getDocs(answersQuery);
-          answersSnapshot.forEach(async (ansDoc) => await deleteDoc(ansDoc.ref));
-
-          const votesQuery = query(collection(db, 'votes'), where('roomCode', '==', roomCode));
-          const votesSnapshot = await getDocs(votesQuery);
-          votesSnapshot.forEach(async (voteDoc) => await deleteDoc(voteDoc.ref));
-        }
-      }
-    });
-  } catch (err) {
-    console.error("Помилка під час фонового очищення кімнат:", err);
-  }
-}
-
-// Запускаємо очищення при завантаженні головної сторінки
-document.addEventListener('DOMContentLoaded', () => {
-  cleanupStaleEmptyRooms();
-});
-
-// Керування модалками
 window.openCreateModal = function () {
   const modal = document.getElementById('createModal');
   const input = document.getElementById('adminPasswordInput');
@@ -148,43 +85,50 @@ window.toggleSessionPasswordVisibility = function () {
   }
 };
 
-// 1. Створення нової сесії гри з власним паролем
+// Створення сесії без жодного дублювання в корені — все, що стосується гри, суворо всередині gameSettings
 window.createGameSession = async function () {
   const sessionPassword = document.getElementById('adminPasswordInput').value.trim();
   const errorMsg = document.getElementById('errorMsg');
-
+  
   if (!sessionPassword) {
     errorMsg.innerText = 'Введіть пароль для сесії!';
     errorMsg.style.display = 'block';
     document.getElementById('adminPasswordInput').focus();
     return;
   }
-
+  
   try {
     const roomCode = generateRoomCode();
+    const sessionRef = doc(db, 'sessions', roomCode);
+    
+    const existing = await getDoc(sessionRef);
+    if (existing.exists()) {
+      window.createGameSession();
+      return;
+    }
 
-    // Створюємо документ сесії з дефолтними налаштуваннями гри всередині
-    await addDoc(collection(db, 'sessions'), {
-      code: roomCode,
+    await setDoc(sessionRef, {
       password: sessionPassword,
       createdAt: serverTimestamp(),
       questionsCount: 0,
-      // Початкові налаштування гри для цієї сесії:
       currentRound: 1,
-      gameView: 'BOARD',
-      phase: 'SUBMIT',
-      showBoardToPlayers: false,
-      showQuestion: false,
-      showVoters: false,
-      timerSeconds: 20,
-      timerStartTime: 0,
-      timerState: 'idle',
-      shuffledAnswers: []
+      gameSettings: {
+        gameView: 'BOARD',
+        phase: 'SUBMIT',
+        showBoardToPlayers: false,
+        showQuestion: false,
+        showVoters: false,
+        timerSeconds: 20,
+        timerStartTime: 0,
+        timerState: 'idle',
+        autoBoardUpdate: false,
+        finishOnLastPlayer: false,
+        halfVoteTime: false
+      }
     });
 
     localStorage.setItem('currentSessionCode', roomCode);
     localStorage.setItem('isAdmin', 'true');
-
     window.location.href = `./admin/index.html?room=${roomCode}`;
   } catch (error) {
     console.error('Помилка створення сесії:', error);
@@ -192,42 +136,39 @@ window.createGameSession = async function () {
   }
 };
 
-// 2. Завантаження списку сесій (архів) з клікабельними рядками
 async function loadSessionsList() {
   const listContainer = document.getElementById('sessionsList');
   listContainer.innerHTML = 'Завантаження...';
-
+  
   try {
     const querySnapshot = await getDocs(collection(db, 'sessions'));
     listContainer.innerHTML = '';
-
+    
     if (querySnapshot.empty) {
       listContainer.innerHTML = '<div style="color: #aaa; text-align: center; padding: 10px;">Архів сесій порожній</div>';
       return;
     }
-
+    
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      const dateStr = data.createdAt 
-        ? new Date(data.createdAt.seconds * 1000).toLocaleString() 
+      const roomCode = docSnap.id;
+      const dateStr = data.createdAt
+        ? new Date(data.createdAt.seconds * 1000).toLocaleString()
         : 'Щойно';
-      
+     
       const row = document.createElement('div');
       row.className = 'session-row';
       row.style.cursor = 'pointer';
       row.innerHTML = `
         <span>📅 ${dateStr}</span>
         <span>❓ ${data.questionsCount || 0}</span>
-        <strong style="color: #03dac6; font-size: 1.1em; letter-spacing: 1px;">${data.code}</strong>
+        <strong style="color: #03dac6; font-size: 1.1em; letter-spacing: 1px;">${roomCode}</strong>
       `;
-
-      // При кліку відкриваємо модалку введення пароля для вибраної сесії
+      
       row.onclick = () => {
-        selectedSessionCode = data.code;
-        selectedSessionDocId = docSnap.id;
-        openSessionPasswordModal(data.code);
+        selectedSessionCode = roomCode;
+        openSessionPasswordModal(roomCode);
       };
-
       listContainer.appendChild(row);
     });
   } catch (error) {
@@ -236,7 +177,6 @@ async function loadSessionsList() {
   }
 }
 
-// Відкриття модалки введення пароля для архівного рядка
 function openSessionPasswordModal(code) {
   const modal = document.getElementById('sessionPasswordModal');
   const input = document.getElementById('sessionPasswordInput');
@@ -244,22 +184,20 @@ function openSessionPasswordModal(code) {
   input.type = 'password';
   document.getElementById('toggleSessionPasswordBtn').innerText = '👁️';
   document.getElementById('sessionErrorMsg').style.display = 'none';
-  
+ 
   document.getElementById('targetSessionCode').innerText = `(${code})`;
-
   modal.style.display = 'flex';
   input.focus();
 }
 
-// Перевірка пароля сесії з архіву
 window.verifySessionPassword = async function () {
   const inputPassword = document.getElementById('sessionPasswordInput').value.trim();
   const errorMsg = document.getElementById('sessionErrorMsg');
-
+  
   try {
-    const docRef = doc(db, 'sessions', selectedSessionDocId);
+    const docRef = doc(db, 'sessions', selectedSessionCode);
     const docSnap = await getDoc(docRef);
-
+    
     if (docSnap.exists()) {
       const sessionData = docSnap.data();
       if (sessionData.password === inputPassword) {
@@ -269,7 +207,6 @@ window.verifySessionPassword = async function () {
         return;
       }
     }
-
     errorMsg.style.display = 'block';
     document.getElementById('sessionPasswordInput').focus();
   } catch (error) {
@@ -278,29 +215,22 @@ window.verifySessionPassword = async function () {
   }
 };
 
-// 3. Підключення гравця за 4-значним кодом
 window.verifyAndJoinGame = async function () {
   const codeInput = document.getElementById('joinCodeInput');
   const code = codeInput.value.trim().toUpperCase();
   const errorMsg = document.getElementById('joinErrorMsg');
-
+  
   if (code.length !== 4) {
     errorMsg.innerText = 'Код має містити рівно 4 символи!';
     errorMsg.style.display = 'block';
     return;
   }
-
+  
   try {
-    const querySnapshot = await getDocs(collection(db, 'sessions'));
-    let found = false;
-
-    querySnapshot.forEach((docSnap) => {
-      if (docSnap.data().code === code) {
-        found = true;
-      }
-    });
-
-    if (!found) {
+    const docRef = doc(db, 'sessions', code);
+    const docSnap = await getDoc(docRef);
+    
+    if (!docSnap.exists()) {
       errorMsg.innerText = 'Кімнату з таким кодом не знайдено!';
       errorMsg.style.display = 'block';
       codeInput.focus();
@@ -315,7 +245,6 @@ window.verifyAndJoinGame = async function () {
   }
 };
 
-// Загальний обробник клавіші Enter
 window.handleKeyPress = function (event, type) {
   if (event.key === 'Enter') {
     if (type === 'create') {
