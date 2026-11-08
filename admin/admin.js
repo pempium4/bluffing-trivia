@@ -87,6 +87,7 @@ async function initAdmin() {
       if (document.getElementById('half-vote-time')) document.getElementById('half-vote-time').checked = !!gSet.halfVoteTime;
       if (document.getElementById('auto-board-update')) document.getElementById('auto-board-update').checked = !!gSet.autoBoardUpdate;
       if (document.getElementById('finish-on-last-player')) document.getElementById('finish-on-last-player').checked = !!gSet.finishOnLastPlayer;
+      if (document.getElementById('show-player-chips')) document.getElementById('show-player-chips').checked = !!gSet.showPlayerChips;
     }
    
     handleAdminTimer(currentGameState);
@@ -231,10 +232,12 @@ function syncGameSettingsUI() {
     const halfVote = document.getElementById('half-vote-time');
     const autoBoard = document.getElementById('auto-board-update');
     const finishLast = document.getElementById('finish-on-last-player');
+    const showChips = document.getElementById('show-player-chips');
    
     if (halfVote) halfVote.checked = !!gSet.halfVoteTime;
     if (autoBoard) autoBoard.checked = !!gSet.autoBoardUpdate;
     if (finishLast) finishLast.checked = !!gSet.finishOnLastPlayer;
+    if (showChips) showChips.checked = !!gSet.showPlayerChips;
   }
 }
 
@@ -266,7 +269,8 @@ if (saveGSBtn) {
       await updateDoc(sessionInfo.docRef, {
         "gameSettings.halfVoteTime": document.getElementById('half-vote-time').checked,
         "gameSettings.autoBoardUpdate": document.getElementById('auto-board-update').checked,
-        "gameSettings.finishOnLastPlayer": document.getElementById('finish-on-last-player').checked
+        "gameSettings.finishOnLastPlayer": document.getElementById('finish-on-last-player').checked,
+        "gameSettings.showPlayerChips": document.getElementById('show-player-chips').checked
       });
       gameSettingsModal.style.display = 'none';
       hideLoader();

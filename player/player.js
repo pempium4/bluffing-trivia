@@ -176,14 +176,6 @@ function subscribeToGameState(username, roomCode) {
     const gSet = sessionData.gameSettings || {};
     const currentRoundNum = Number(sessionData.currentRound) || 1;
 
-    // 👇 ДОДАЙ ЦЕЙ ЛОГ ДЛЯ ПЕРЕВІРКИ
-    console.log("📥 Оновлення стану від сесії:", {
-      phase: gSet.phase,
-      timerState: gSet.timerState,
-      timerSeconds: gSet.timerSeconds,
-      showBoardToPlayers: gSet.showBoardToPlayers
-    });
-
     myPlayerId = getOrCreateUserId(roomCode);
     // ... решта коду
 

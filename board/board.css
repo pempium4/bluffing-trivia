@@ -17,7 +17,6 @@ h1 {
 }
 .badge {
   background: #3700b3;
-  color: #bb86fc;
   padding: 10px 24px;
   border-radius: 24px;
   font-weight: bold;
@@ -197,4 +196,47 @@ h1 {
   height: auto;
   display: block;
   margin: 0 auto;
+}
+
+#submittedPlayersContainer {
+  transition: opacity 1s ease-in-out;
+}
+.player-submitted-chip {
+  background: rgba(3, 218, 198, 0.15);
+  border: 1px solid #03dac6;
+  color: #03dac6;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-voted-chip {
+  background: rgba(55, 0, 179, 0.25);
+  border: 1px solid #bb86fc;          
+  color: #d2b4de;                      
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@keyframes fadeInSoft {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.player-submitted-chip, .player-voted-chip {
+  animation: fadeInSoft 0.3s ease-in-out forwards;
+}
+
+@keyframes fadeInChip {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }

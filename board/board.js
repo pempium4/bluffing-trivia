@@ -72,16 +72,37 @@ async function initBoard() {
   onSnapshot(collection(db, `sessions/${sessionInfo.roomCode}/answers`), () => {
     if (currentGameState && sessionInfo) renderBoard(currentGameState, sessionInfo.roomCode);
   });
+
+  // Запускаємо слухача підключених гравців із підколекції кімнати
+  subscribeToConnectedPlayers(sessionInfo.roomCode);
+  
+  subscribeToSubmittedPlayers(sessionInfo.roomCode);
+  subscribeToVotedPlayers(sessionInfo.roomCode);
 }
+
+let previousGameView = 'BOARD';
+let previousRoundNum = 1;
 
 async function renderBoard(state, roomCode) {
   const gSet = state.gameSettings || {};
+  const gameView = gSet.gameView || 'BOARD';
+  const currentRoundNum = Number(state.currentRound) || 1;
+
   const viewQr = document.getElementById('viewQrMode');
   const viewBoard = document.getElementById('viewBoardMode');
   const viewLb = document.getElementById('viewLbMode');
-  
-  // Використовуємо gameView з gameSettings
-  const gameView = gSet.gameView || 'BOARD';
+
+  // 🛡️ ХОВАЄМО і ЧИСТИМО варіанти ТІЛЬКИ якщо щойно перейшли з рейтингу на дошку або змінився раунд
+  if ((previousGameView === 'LEADERBOARD' && gameView === 'BOARD') || (previousRoundNum !== currentRoundNum)) {
+    const answersWrapper = document.getElementById('answersWrapper');
+    const answersContainer = document.getElementById('answersList');
+    if (answersWrapper) answersWrapper.style.display = 'none';
+    if (answersContainer) answersContainer.innerHTML = '';
+  }
+
+  // Зберігаємо поточний стан для наступної перевірки
+  previousGameView = gameView;
+  previousRoundNum = currentRoundNum;
 
   if (viewBoard) viewBoard.style.display = 'none';
   if (viewLb) viewLb.style.display = 'none';
@@ -105,7 +126,6 @@ async function renderBoard(state, roomCode) {
     if (viewBoard) viewBoard.style.display = 'block';
   }
 
-  const currentRoundNum = Number(state.currentRound) || 1;
   const roundBlock = document.getElementById('boardRound');
   if (roundBlock) {
     roundBlock.innerText = `Запитання № ${currentRoundNum}`;
@@ -114,6 +134,9 @@ async function renderBoard(state, roomCode) {
   await loadQuestionText(currentRoundNum, roomCode);
   handleTimer(gSet);
   loadAnswersAndVotes(state, currentRoundNum, roomCode);
+  
+  updateSubmittedPlayersUI(currentRoundNum);
+  updateVotedPlayersUI(currentRoundNum);
 }
 
 async function loadQuestionText(currentRoundNum, roomCode) {
@@ -135,12 +158,12 @@ async function loadQuestionText(currentRoundNum, roomCode) {
     if (!questionImgEl) {
       questionImgEl = document.createElement('img');
       questionImgEl.id = 'boardQuestionImage';
-      questionImgEl.style.cssText = 'display: none; width: 100%; border-radius: 8px; margin-bottom: 16px; object-fit: contain; margin-left: auto; margin-right: auto;';
+      questionImgEl.style.cssText = 'display: none; width: auto; border-radius: 8px; margin-left: auto; margin-right: auto; margin-bottom: 16px; object-fit: contain; margin-left: auto; margin-right: auto;';
       questionCard.prepend(questionImgEl);
     }
 
     if (foundImage && foundImage.trim() !== '') {
-      questionImgEl.style.display = 'block';
+      questionImgEl.style.display = 'inline';
       if (questionImgEl.src !== foundImage) {
         questionImgEl.src = foundImage;
         questionImgEl.classList.remove('question-animate');
@@ -630,6 +653,120 @@ function renderConnectedPlayers() {
     const chip = document.createElement('div');
     chip.className = 'player-chip';
     chip.innerText = player.userName;
+    container.appendChild(chip);
+  });
+}
+
+let lastAnswersSnapshot = null;
+
+function subscribeToSubmittedPlayers(roomCode) {
+  const q = collection(db, `sessions/${roomCode}/answers`);
+  onSnapshot(q, (snapshot) => {
+    lastAnswersSnapshot = snapshot;
+    // Беремо актуальний номер раунду з поточного стану гри або за замовчуванням 1
+    const currentRoundNum = Number(currentGameState?.currentRound) || 1;
+    updateSubmittedPlayersUI(currentRoundNum);
+  });
+}
+
+async function updateSubmittedPlayersUI(currentRoundNum) {
+  const container = document.getElementById('submittedPlayersContainer');
+  if (!container || !lastAnswersSnapshot) return;
+
+  const gSet = currentGameState?.gameSettings || {};
+  
+  // 🛡️ Якщо глобальний світчер міток вимкнено або активний показ питань — ховаємо мітки миттєво
+  if (gSet.showPlayerChips === false || gSet.showQuestion || gSet.gameView === 'LEADERBOARD') {
+    container.style.opacity = '1';
+    container.innerHTML = '';
+    return;
+  }
+
+  // Отримуємо список гравців
+  const playersSnap = await getDocs(collection(db, `sessions/${sessionInfo.roomCode}/players`));
+  const playersMap = {};
+  playersSnap.forEach(docSnap => {
+    const p = docSnap.data();
+    playersMap[docSnap.id] = p.userName || '👤 Гравець';
+  });
+
+  const submittedNames = [];
+  lastAnswersSnapshot.forEach(docSnap => {
+    const ans = docSnap.data();
+    if (Number(ans.roundNum) === Number(currentRoundNum)) {
+      const name = playersMap[ans.userId] || '👤 Гравець';
+      submittedNames.push(name);
+    }
+  });
+
+  container.style.opacity = '1';
+  container.innerHTML = '';
+
+  if (submittedNames.length === 0) return;
+
+  submittedNames.forEach(name => {
+    const chip = document.createElement('div');
+    chip.className = 'player-submitted-chip';
+    const hasEmoji = /^[\p{Extended_Pictographic}\u1F300-\u1F9FF]/u.test(name);
+    chip.innerHTML = hasEmoji ? `<span>${name}</span>` : `<span>👤 ${name}</span>`;
+    container.appendChild(chip);
+  });
+}
+
+let lastVotesSnapshot = null;
+
+function subscribeToVotedPlayers(roomCode) {
+  const q = collection(db, `sessions/${roomCode}/votes`);
+  onSnapshot(q, (snapshot) => {
+    lastVotesSnapshot = snapshot;
+    const currentRoundNum = Number(currentGameState?.currentRound) || 1;
+    updateVotedPlayersUI(currentRoundNum);
+  });
+}
+
+async function updateVotedPlayersUI(currentRoundNum) {
+  const container = document.getElementById('votedPlayersContainer');
+  if (!container || !lastVotesSnapshot) return;
+
+  const gSet = currentGameState?.gameSettings || {};
+  
+  const showOptionsActive = gSet.showQuestion === true;
+  const showVotersActive = gSet.showVoters === true;
+
+  // 🛡️ Якщо глобальний світчер міток вимкнено, варіанти не показані або вже увімкнено авторів — ховаємо
+  if (gSet.showPlayerChips === false || !showOptionsActive || showVotersActive || gSet.gameView === 'LEADERBOARD') {
+    container.style.opacity = '1';
+    container.innerHTML = '';
+    return;
+  }
+
+  // Отримуємо список гравців
+  const playersSnap = await getDocs(collection(db, `sessions/${sessionInfo.roomCode}/players`));
+  const playersMap = {};
+  playersSnap.forEach(docSnap => {
+    const p = docSnap.data();
+    playersMap[docSnap.id] = p.userName || '👤 Гравець';
+  });
+
+  const votedNames = [];
+  lastVotesSnapshot.forEach(docSnap => {
+    const vote = docSnap.data();
+    if (Number(vote.roundNum) === Number(currentRoundNum)) {
+      const name = playersMap[vote.userId] || '👤 Гравець';
+      votedNames.push(name);
+    }
+  });
+
+  container.style.opacity = '1';
+  container.innerHTML = '';
+
+  if (votedNames.length === 0) return;
+
+  votedNames.forEach(name => {
+    const chip = document.createElement('div');
+    chip.className = 'player-voted-chip';
+    const hasEmoji = /^[\p{Extended_Pictographic}\u1F300-\u1F9FF]/u.test(name);
+    chip.innerHTML = hasEmoji ? `<span>${name}</span>` : `<span>👤 ${name}</span>`;
     container.appendChild(chip);
   });
 }
