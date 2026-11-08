@@ -10,6 +10,7 @@ import {
   setDoc,
   deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { AVAILABLE_EMOJIS } from './emojis.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCYp0Rtyu20272JG6pF6EB92cTGL13jpNc",
@@ -32,6 +33,7 @@ let sessionInfo = null;
 let lastProcessedRound = null;
 let heartbeatInterval = null;
 let myPlayerId = null;
+let selectedEmoji = '👤';
 
 async function getSessionRef() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -53,7 +55,18 @@ window.onload = async function () {
     if (loadingEl) loadingEl.innerText = 'Помилка: кімнату не знайдено!';
     return;
   }
+
+  const usernameInput = document.getElementById('loginUsername');
+  if (usernameInput) {
+    usernameInput.oninput = () => {
+      usernameInput.style.borderColor = '#ccc';
+      const errDiv = document.getElementById('loginErrorMsg');
+      if (errDiv) errDiv.style.display = 'none';
+    };
+  }
+
   checkUserSession(sessionInfo.roomCode);
+  initEmojiModal()
 };
 
 function getOrCreateUserId(roomCode) {
@@ -135,15 +148,25 @@ function checkUserSession(roomCode) {
 }
 
 window.joinGame = async function () {
-  const emojiSelect = document.getElementById('userEmojiSelect');
-  const emoji = emojiSelect ? emojiSelect.value : '👤';
+  const emoji = selectedEmoji; 
   const input = document.getElementById('loginUsername');
+  const errDiv = document.getElementById('loginErrorMsg');
   const name = input ? input.value.trim() : '';
   
   if (!name) {
-    alert('Будь ласка, введіть свій нікнейм!');
+    // Показуємо червоний текст замість alert
+    if (errDiv) {
+      errDiv.innerText = 'Будь ласка, введіть свій нікнейм!';
+      errDiv.style.display = 'block';
+    }
+    if (input) {
+      input.style.borderColor = '#ff5252';
+    }
     return;
   }
+
+  if (errDiv) errDiv.style.display = 'none';
+  if (input) input.style.borderColor = '#ccc';
 
   const fullUserName = `${emoji} ${name}`;
   localStorage.setItem('bluff_username', fullUserName);
@@ -544,3 +567,56 @@ window.sendVote = async function (encodedAnsId, encodedAnsText) {
     errDiv.style.display = 'block';
   }
 };
+
+function initEmojiModal() {
+  const modal = document.getElementById('emojiModal');
+  const openBtn = document.getElementById('openEmojiModalBtn');
+  const currentIconSpan = document.getElementById('currentAvatarIcon');
+  const gridContainer = document.getElementById('emojiGrid');
+
+  if (!modal || !openBtn || !gridContainer) return;
+
+  const emojis = AVAILABLE_EMOJIS;
+
+  // Відновлюємо збережений емодзі
+  const savedEmoji = localStorage.getItem('bluff_user_emoji');
+  if (savedEmoji) {
+    selectedEmoji = savedEmoji;
+    currentIconSpan.innerText = selectedEmoji;
+  }
+
+  // Відкриття модалки
+  openBtn.onclick = (e) => {
+    e.preventDefault();
+    modal.style.display = 'flex';
+  };
+
+  // Закриття модалки при кліку на фон поза вікном
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      modal.style.display = 'none';
+    }
+  };
+
+  // Рендеримо сітку
+  gridContainer.innerHTML = '';
+  emojis.forEach((emoji) => {
+    const item = document.createElement('div');
+    item.className = 'emoji-option';
+    if (emoji === selectedEmoji) {
+      item.classList.add('selected');
+    }
+    item.innerText = emoji;
+
+    // Клік по емодзі: обираємо, оновлюємо і одразу закриваємо модалку
+    item.onclick = () => {
+      document.querySelectorAll('.emoji-option').forEach(el => el.classList.remove('selected'));
+      item.classList.add('selected');
+      selectedEmoji = emoji;
+      currentIconSpan.innerText = emoji; 
+      modal.style.display = 'none'; // Автоматичне закриття
+    };
+
+    gridContainer.appendChild(item);
+  });
+}

@@ -22,31 +22,13 @@
         Введіть свій нікнейм, щоб приєднатися до гри:
       </p>
       <div style="display: flex; gap: 8px; margin-bottom: 15px; align-items: center;">
-        <select id="userEmojiSelect" style="background: #ffffff; color: #333; border: 1px solid #ccc; padding: 0 10px; height: 46px; border-radius: 8px; font-size: 20px; cursor: pointer; outline: none; box-sizing: border-box;">
-          <option value="👤">👤</option>
-          <option value="🐺">🐺</option>
-          <option value="🦊">🦊</option>
-          <option value="🐰">🐰</option>
-          <option value="🦝">🦝</option>
-          <option value="🐼">🐼</option>
-          <option value="🐵">🐵</option>
-          <option value="🐸">🐸</option>
-          <option value="🐷">🐷</option>
-          <option value="🐲">🐲</option>
-          <option value="🦄">🦄</option>
-          <option value="🤡">🤡</option>
-          <option value="👽">👽</option>
-          <option value="😈">😈</option>
-          <option value="🤖">🤖</option>
-          <option value="👻">👻</option>
-          <option value="💩">💩</option>
-          <option value="🗿">🗿</option>
-        </select>
+        <button type="button" id="openEmojiModalBtn" style="display: flex; align-items: center; justify-content: center; background: #ffffff; border: 1px solid #ccc; width: 46px; height: 46px; border-radius: 8px; cursor: pointer; padding: 0; box-sizing: border-box;">
+            <span id="currentAvatarIcon" style="font-size: 22px; line-height: 1;">👤</span>
+        </button>
         <input type="text" id="loginUsername" placeholder="Ваш нікнейм" style="flex: 1; height: 46px; padding: 0 14px; border-radius: 8px; border: 1px solid #ccc; background: #ffffff; color: #333; font-size: 16px; outline: none; box-sizing: border-box;" />
       </div>
-      <button onclick="joinGame()" style="background: #3700b3">
-        🎮 Приєднатися
-      </button>
+      <div id="loginErrorMsg" style="color: #ff5252; font-size: 14px; margin-top: -8px; margin-bottom: 12px; display: none;"></div>
+      <button onclick="joinGame()" style="background: #3700b3">Приєднатися</button>
     </div>
 
     <!-- Екран 2: Основний інтерфейс гри -->
@@ -234,6 +216,14 @@
       </div>
 
       <div id="errorMsg"></div>
+    </div>
+
+    <!-- Модальне вікно вибору емодзі -->
+    <div id="emojiModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000;">
+      <div style="background: #1e1e1e; padding: 20px; border-radius: 12px; width: 280px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+          <h3 style="color: #fff; margin-top: 0; margin-bottom: 15px; font-size: 18px; text-align: center;">Оберіть аватар</h3>
+          <div id="emojiGrid" class="emoji-grid"></div>
+      </div>
     </div>
 
     <script type="module" src="player.js"></script>
